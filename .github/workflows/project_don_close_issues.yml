@@ -1,6 +1,6 @@
 name: Project Done -> Close Issues
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       dry_run:

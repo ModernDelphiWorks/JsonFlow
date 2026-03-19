@@ -1,1 +1,184 @@
+name: Project Done -> Close Issues
 
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "If true, do not close issues; only log."
+        required: true
+        default: "true"
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: project-done-close-issues
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_OWNER: "ModernDelphiWorks-Ent"
+      PROJECT_NUMBER: "1"
+      STATUS_FIELD_NAME: "Status"
+      DONE_OPTION_NAME: "Done"
+      TARGET_REPO: "ModernDelphiWorks-Ent/JsonFlow"
+      DEFAULT_DRY_RUN: "true"
+    steps:
+      - name: Close issues whose project item is Done
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_SYNC_PAT }}
+          script: |
+            const projectOwner = process.env.PROJECT_OWNER
+            const projectNumber = Number(process.env.PROJECT_NUMBER)
+            const statusFieldName = process.env.STATUS_FIELD_NAME
+            const doneOptionName = process.env.DONE_OPTION_NAME
+            const targetRepo = process.env.TARGET_REPO
+            const inputDryRun = (core.getInput('dry_run') || '').trim().toLowerCase()
+            const defaultDryRun = (process.env.DEFAULT_DRY_RUN || 'true').trim().toLowerCase()
+            const dryRun = (inputDryRun === '' ? defaultDryRun : inputDryRun) === 'true'
+
+            core.info(`Config: owner=${projectOwner} projectNumber=${projectNumber} statusField=${statusFieldName} done=${doneOptionName} targetRepo=${targetRepo} dryRun=${dryRun}`)
+
+            const queryProject = `
+              query($owner: String!, $number: Int!) {
+                organization(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                    title
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options {
+                            id
+                            name
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `
+
+            async function getProject() {
+              const result = await github.graphql(queryProject, { owner: projectOwner, number: projectNumber })
+              const org = result.organization
+              if (!org || !org.projectV2) throw new Error(`Project not found: org=${projectOwner} number=${projectNumber}`)
+              return org.projectV2
+            }
+
+            const project = await getProject()
+            core.info(`Project: ${project.title} (${project.id})`)
+
+            const statusField = (project.fields.nodes || []).find(f => f && f.name === statusFieldName)
+            if (!statusField) {
+              const available = (project.fields.nodes || []).map(f => f && f.name).filter(Boolean)
+              throw new Error(`Status field not found: "${statusFieldName}". Available: ${available.join(', ')}`)
+            }
+
+            const doneOption = (statusField.options || []).find(o => o && o.name === doneOptionName)
+            if (!doneOption) {
+              const available = (statusField.options || []).map(o => o && o.name).filter(Boolean)
+              throw new Error(`Done option not found: "${doneOptionName}". Available: ${available.join(', ')}`)
+            }
+
+            const queryItems = `
+              query($owner: String!, $number: Int!, $after: String) {
+                organization(login: $owner) {
+                  projectV2(number: $number) {
+                    items(first: 100, after: $after) {
+                      nodes {
+                        id
+                        fieldValues(first: 50) {
+                          nodes {
+                            ... on ProjectV2ItemFieldSingleSelectValue {
+                              name
+                              field {
+                                ... on ProjectV2SingleSelectField { name }
+                              }
+                            }
+                          }
+                        }
+                        content {
+                          ... on Issue {
+                            id
+                            number
+                            state
+                            title
+                            url
+                            repository { nameWithOwner }
+                          }
+                        }
+                      }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                  }
+                }
+              }
+            `
+
+            function getStatusValue(item) {
+              const nodes = (((item || {}).fieldValues || {}).nodes) || []
+              for (const node of nodes) {
+                const fieldName = node?.field?.name
+                if (fieldName === statusFieldName) return node?.name || null
+              }
+              return null
+            }
+
+            const [targetOwner, targetName] = targetRepo.split('/')
+            if (!targetOwner || !targetName) throw new Error(`Invalid TARGET_REPO: ${targetRepo}`)
+
+            let closedCount = 0
+            let scanned = 0
+            let cursor = null
+
+            while (true) {
+              const result = await github.graphql(queryItems, { owner: projectOwner, number: projectNumber, after: cursor })
+              const items = result?.organization?.projectV2?.items
+              if (!items) break
+
+              for (const item of (items.nodes || [])) {
+                scanned += 1
+                const statusValue = getStatusValue(item)
+                if (statusValue !== doneOptionName) continue
+
+                const issue = item.content
+                if (!issue || !issue.repository || !issue.repository.nameWithOwner) continue
+                if (issue.repository.nameWithOwner !== targetRepo) continue
+                if (issue.state !== 'OPEN') continue
+
+                core.info(`Done item -> closing issue #${issue.number}: ${issue.title}`)
+
+                if (dryRun) continue
+
+                await github.rest.issues.update({
+                  owner: targetOwner,
+                  repo: targetName,
+                  issue_number: issue.number,
+                  state: 'closed'
+                })
+
+                await github.rest.issues.createComment({
+                  owner: targetOwner,
+                  repo: targetName,
+                  issue_number: issue.number,
+                  body: `Fechada automaticamente: item correspondente marcado como \"${doneOptionName}\" no Project privado \"${project.title}\".`
+                })
+
+                closedCount += 1
+              }
+
+              if (!items.pageInfo.hasNextPage) break
+              cursor = items.pageInfo.endCursor
+            }
+
+            core.info(`Scan complete. scannedItems=${scanned} closedIssues=${closedCount} dryRun=${dryRun}`)

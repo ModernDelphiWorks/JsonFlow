@@ -39,7 +39,8 @@ jobs:
             const statusFieldName = process.env.STATUS_FIELD_NAME
             const doneOptionName = process.env.DONE_OPTION_NAME
             const targetRepo = process.env.TARGET_REPO
-            const inputDryRun = (core.getInput('dry_run') || '').trim().toLowerCase()
+            const eventDryRun = (context?.payload?.inputs?.dry_run ?? '')
+            const inputDryRun = String(eventDryRun).trim().toLowerCase()
             const defaultDryRun = (process.env.DEFAULT_DRY_RUN || 'true').trim().toLowerCase()
             const dryRun = (inputDryRun === '' ? defaultDryRun : inputDryRun) === 'true'
 

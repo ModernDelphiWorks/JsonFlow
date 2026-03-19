@@ -26,7 +26,7 @@ jobs:
       PROJECT_NUMBER: "1"
       STATUS_FIELD_NAME: "Status"
       DONE_OPTION_NAME: "Done"
-      TARGET_REPO: "ModernDelphiWorks-Ent/JsonFlow"
+      TARGET_REPO: "ModernDelphiWorks/JsonFlow"
       DEFAULT_DRY_RUN: "true"
     steps:
       - name: Close issues whose project item is Done

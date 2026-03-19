@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Navigator;
 
 interface
@@ -31,7 +32,6 @@ type
   public
     constructor Create(const ARoot: IJSONElement);
     destructor Destroy; override;
-
     function GetValue(const APath: String): IJSONElement;
     function GetObject(const APath: String): IJSONObject;
     function GetArray(const APath: String): IJSONArray;

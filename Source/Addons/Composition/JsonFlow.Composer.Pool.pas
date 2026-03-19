@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   Fluent and expressive JSON manipulation API for Delphi.
@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Composer.Pool;
 
 interface
@@ -21,50 +22,52 @@ uses
   System.Classes,
   System.Generics.Collections,
   System.SyncObjs,
-  JsonFlow.Interfaces;
+  JsonFlow.Interfaces,
+  JsonFlow.Composer
+  {$IFDEF USE_STRATUM},
+  Stratum.Pool
+  {$ENDIF}; // Usando o Pool Genérico do Stratum
 
 type
-  // Pool Statistics
-  TPoolStats = record
-    TotalCreated: Integer;
-    TotalDestroyed: Integer;
-    CurrentInPool: Integer;
-    CurrentInUse: Integer;
-    MaxPoolSize: Integer;
-    HitRate: Double;
-    TotalBorrows: Integer;
-    TotalReturns: Integer;
-  end;
-
-  // Pool Configuration
-  TPoolConfiguration = record
-    MaxSize: Integer;
-    PreAllocate: Integer;
-    AutoCleanup: Boolean;
-    CleanupInterval: Integer; // minutes
-    EnableStats: Boolean;
-    
-    class function Default: TPoolConfiguration; static;
-  end;
-
   // JSON Composer Pool
   TJSONComposerPool = class
+  public type
+    // Pool Statistics (Mantido para compatibilidade, mas mapeado do Stratum)
+    TPoolStats = record
+      TotalCreated: Integer;
+      TotalDestroyed: Integer; // Não usado no Stratum
+      CurrentInPool: Integer;
+      CurrentInUse: Integer; // Não rastreado diretamente no Stratum simples, calculado
+      MaxPoolSize: Integer;
+      HitRate: Double; // Calculado
+      TotalBorrows: Integer; // Mapeado de ReuseTotal + CreatedTotal
+      TotalReturns: Integer; // ReuseTotal
+    end;
+
+    // Pool Configuration
+    TPoolConfiguration = record
+      MaxSize: Integer;
+      PreAllocate: Integer;
+      AutoCleanup: Boolean; // Ignorado no Stratum por enquanto
+      CleanupInterval: Integer; // Ignorado
+      EnableStats: Boolean; // Sempre ativo no Stratum
+      class function Default: TPoolConfiguration; static;
+    end;
+
   private
-    FPool: TList<IJSONComposer>;
-    FInUse: TList<IJSONComposer>;
-    FLock: TCriticalSection;
-    FStats: TPoolStats;
+    {$IFDEF USE_STRATUM}
+    FPool: TObjectPool<TJSONComposer>; // O Pool Genérico requer classe concreta com construtor
+    {$ENDIF}
     FConfig: TPoolConfiguration;
-    FCreateComposerFunc: TFunc<IJSONComposer>;
+    FCreateComposerFunc: TFunc<IJSONComposer>; // Mantido, mas adaptador necessário
     
-    function _CreateComposer: IJSONComposer;
-    procedure _UpdateStats;
   public
     constructor Create(const ACreateFunc: TFunc<IJSONComposer> = nil);
     destructor Destroy; override;
     
     function BorrowComposer: IJSONComposer;
     procedure ReturnComposer(const AComposer: IJSONComposer);
+    
     function GetStats: TPoolStats;
     function GetStatsAsString: String;
     procedure Clear;
@@ -79,7 +82,6 @@ type
   public
     constructor Create(const APool: TJSONComposerPool);
     destructor Destroy; override;
-    
     property Composer: IJSONComposer read FComposer;
   end;
 
@@ -91,18 +93,16 @@ type
   public
     class function Instance: TJSONComposerPool;
     class procedure FreeInstance;
-    class procedure Configure(const AConfig: TPoolConfiguration);
+    class procedure Configure(const AConfig: TJSONComposerPool.TPoolConfiguration);
     class constructor Create;
     class destructor Destroy;
   end;
 
 implementation
 
-uses
-  JsonFlow.Composer; // Agora podemos usar sem dependência circular
+{ TJSONComposerPool.TPoolConfiguration }
 
-// TPoolConfiguration
-class function TPoolConfiguration.Default: TPoolConfiguration;
+class function TJSONComposerPool.TPoolConfiguration.Default: TPoolConfiguration;
 begin
   Result.MaxSize := 10;
   Result.PreAllocate := 2;
@@ -111,111 +111,88 @@ begin
   Result.EnableStats := True;
 end;
 
-// TJSONComposerPool
+{ TJSONComposerPool }
+
 constructor TJSONComposerPool.Create(const ACreateFunc: TFunc<IJSONComposer>);
-var
-  I: Integer;
 begin
   inherited Create;
-  FPool := TList<IJSONComposer>.Create;
-  FInUse := TList<IJSONComposer>.Create;
-  FLock := TCriticalSection.Create;
   FConfig := TPoolConfiguration.Default;
   FCreateComposerFunc := ACreateFunc;
   
-  // Pre-allocate composers
-  for I := 0 to FConfig.PreAllocate - 1 do
-    FPool.Add(_CreateComposer);
-    
-  FStats.MaxPoolSize := FConfig.MaxSize;
+  {$IFDEF USE_STRATUM}
+  FPool := TObjectPool<TJSONComposer>.Create(FConfig.MaxSize, FConfig.PreAllocate, True);
+  {$ENDIF}
 end;
 
 destructor TJSONComposerPool.Destroy;
 begin
-  Clear;
+  {$IFDEF USE_STRATUM}
   FPool.Free;
-  FInUse.Free;
-  FLock.Free;
+  {$ENDIF}
   inherited;
-end;
-
-function TJSONComposerPool._CreateComposer: IJSONComposer;
-begin
-  if Assigned(FCreateComposerFunc) then
-    Result := FCreateComposerFunc()
-  else
-    Result := TJSONComposer.Create;
-    
-  Inc(FStats.TotalCreated);
-end;
-
-procedure TJSONComposerPool._UpdateStats;
-begin
-  FStats.CurrentInPool := FPool.Count;
-  FStats.CurrentInUse := FInUse.Count;
-  
-  if FStats.TotalBorrows > 0 then
-    FStats.HitRate := (FStats.TotalBorrows - FStats.TotalCreated) / FStats.TotalBorrows * 100
-  else
-    FStats.HitRate := 0;
 end;
 
 function TJSONComposerPool.BorrowComposer: IJSONComposer;
 begin
-  FLock.Enter;
-  try
-    if FPool.Count > 0 then
-    begin
-      Result := FPool.Last;
-      FPool.Delete(FPool.Count - 1);
-    end
-    else
-      Result := _CreateComposer;
-      
-    FInUse.Add(Result);
-    Inc(FStats.TotalBorrows);
-    _UpdateStats;
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  // Usa o pool se Stratum estiver habilitado
+  Result := FPool.Get;
+  {$ELSE}
+  // Cria uma nova instância se Stratum estiver desabilitado (sem pool)
+  // Nota: TJSONComposer é uma classe concreta assumida aqui.
+  // Se ACreateFunc for fornecido, usamos ele (assumindo que retorna uma nova instância).
+  if Assigned(FCreateComposerFunc) then
+    Result := FCreateComposerFunc()
+  else
+    Result := TJSONComposer.Create;
+  {$ENDIF}
 end;
 
 procedure TJSONComposerPool.ReturnComposer(const AComposer: IJSONComposer);
+{$IFDEF USE_STRATUM}
 var
-  LIndex: Integer;
+  LObj: TObject;
+{$ENDIF}
 begin
-  if not Assigned(AComposer) then
-    Exit;
-    
-  FLock.Enter;
-  try
-    LIndex := FInUse.IndexOf(AComposer);
-    if LIndex >= 0 then
-    begin
-      FInUse.Delete(LIndex);
-      
-      // Clear the composer and return to pool if there's space
-      AComposer.Clear;
-      if FPool.Count < FConfig.MaxSize then
-        FPool.Add(AComposer);
-        
-      Inc(FStats.TotalReturns);
-      _UpdateStats;
-    end;
-  finally
-    FLock.Leave;
+  if AComposer = nil then Exit;
+  
+  {$IFDEF USE_STRATUM}
+  // Cast para objeto para devolver ao pool
+  LObj := AComposer as TObject;
+  if LObj is TJSONComposer then
+  begin
+    // Limpa o estado antes de devolver (TJSONComposer deve implementar Clear)
+    AComposer.Clear;
+    FPool.Release(TJSONComposer(LObj));
   end;
+  {$ELSE}
+  // Se não usa pool, não faz nada. 
+  // O objeto será liberado automaticamente quando a referência da interface sair de escopo.
+  // Como BorrowComposer cria uma nova instância gerenciada por interface, 
+  // o contador de referência cuidará da destruição.
+  {$ENDIF}
 end;
 
 function TJSONComposerPool.GetStats: TPoolStats;
 begin
-  FLock.Enter;
-  try
-    _UpdateStats;
-    Result := FStats;
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  Result.TotalCreated := Integer(FPool.CreatedTotal);
+  Result.TotalReturns := Integer(FPool.ReuseTotal);
+  Result.TotalBorrows := Result.TotalCreated + Result.TotalReturns;
+  Result.CurrentInPool := FPool.Count;
+  Result.MaxPoolSize := FPool.MaxSize;
+  
+  if Result.TotalBorrows > 0 then
+    Result.HitRate := (Result.TotalReturns / Result.TotalBorrows) * 100
+  else
+    Result.HitRate := 0;
+    
+  // Estimativa
+  Result.CurrentInUse := Result.TotalBorrows - Result.TotalReturns;
+  {$ELSE}
+  // Retorna zerado se não houver pool
+  FillChar(Result, SizeOf(Result), 0);
+  {$ENDIF}
 end;
 
 function TJSONComposerPool.GetStatsAsString: String;
@@ -223,37 +200,24 @@ var
   LStats: TPoolStats;
 begin
   LStats := GetStats;
-  Result := Format('Pool Stats: Created=%d, InPool=%d, InUse=%d, HitRate=%.1f%%',
-    [LStats.TotalCreated, LStats.CurrentInPool, LStats.CurrentInUse, LStats.HitRate]);
+  Result := Format('Pool Stats: Created=%d, InPool=%d, Reuse=%d, HitRate=%.1f%%',
+    [LStats.TotalCreated, LStats.CurrentInPool, LStats.TotalReturns, LStats.HitRate]);
 end;
 
 procedure TJSONComposerPool.Clear;
 begin
-  FLock.Enter;
-  try
-    FPool.Clear;
-    FInUse.Clear;
-    FStats.TotalDestroyed := FStats.TotalCreated;
-    FStats.TotalCreated := 0;
-    FStats.TotalBorrows := 0;
-    FStats.TotalReturns := 0;
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  FPool.Clear;
+  {$ENDIF}
 end;
 
 procedure TJSONComposerPool.Configure(const AConfig: TPoolConfiguration);
 begin
-  FLock.Enter;
-  try
-    FConfig := AConfig;
-    FStats.MaxPoolSize := AConfig.MaxSize;
-  finally
-    FLock.Leave;
-  end;
+  FConfig := AConfig;
 end;
 
-// TPooledJSONComposer
+{ TPooledJSONComposer }
+
 constructor TPooledJSONComposer.Create(const APool: TJSONComposerPool);
 begin
   inherited Create;
@@ -268,7 +232,8 @@ begin
   inherited;
 end;
 
-// TGlobalJSONComposerPool
+{ TGlobalJSONComposerPool }
+
 class constructor TGlobalJSONComposerPool.Create;
 begin
   FLock := TCriticalSection.Create;
@@ -309,7 +274,7 @@ begin
   end;
 end;
 
-class procedure TGlobalJSONComposerPool.Configure(const AConfig: TPoolConfiguration);
+class procedure TGlobalJSONComposerPool.Configure(const AConfig: TJSONComposerPool.TPoolConfiguration);
 begin
   Instance.Configure(AConfig);
 end;

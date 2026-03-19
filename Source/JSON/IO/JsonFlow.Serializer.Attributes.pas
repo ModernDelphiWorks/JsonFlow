@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Serializer.Attributes;
 
 interface

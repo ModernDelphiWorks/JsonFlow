@@ -70,6 +70,7 @@
 *.dsk
 
 # Delphi history and backups
+.trae/
 __history/
 __recovery/
 *.~*

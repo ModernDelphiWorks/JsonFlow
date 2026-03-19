@@ -12,9 +12,8 @@
 }
 
 {$include ../../JsonFlow.inc}
-unit JsonFlow.Converters;
 
-{$I ../../JsonFlow.inc}
+unit JsonFlow.Converters;
 
 interface
 
@@ -30,30 +29,25 @@ type
   /// </summary>
   IJsonFlowConverters = interface
     ['{B8E5F4A2-1C3D-4E5F-8A9B-2C4D6E8F0A1B}']
-    
     // XML Conversions
     function XMLToJSON(const AXML: string): string; overload;
     function JSONToXML(const AJSON: string): string; overload;
     function XMLToJSON(const AXML: string; const AOptions: string): string; overload;
     function JSONToXML(const AJSON: string; const AOptions: string): string; overload;
-    
     // Dataset Conversions
     function DataSetToJSON(ADataSet: TDataSet): string; overload;
     function JSONToDataSet(const AJSON: string; ADataSet: TDataSet): Boolean; overload;
     function DataSetToJSON(ADataSet: TDataSet; const AOptions: string): string; overload;
     function JSONToDataSet(const AJSON: string; ADataSet: TDataSet; const AOptions: string): Boolean; overload;
-    
     // Object Conversions
     function ObjectToJSON(AObject: TObject): string; overload;
     function JSONToObject(const AJSON: string; AObjectClass: TClass): TObject; overload;
     function ObjectToJSON(AObject: TObject; const AOptions: string): string; overload;
     function JSONToObject(const AJSON: string; AObject: TObject): Boolean; overload;
-    
     // Configuration Methods
     procedure ConfigureXMLConverter(const AConfig: string);
     procedure ConfigureDataSetConverter(const AConfig: string);
     procedure ConfigureObjectConverter(const AConfig: string);
-    
     // Utility Methods
     function GetLastError: string;
     procedure ClearError;
@@ -71,39 +65,32 @@ type
     FXMLConverterConfig: string;
     FDataSetConverterConfig: string;
     FObjectConverterConfig: string;
-    
     procedure SetLastError(const AError: string);
     function CreateXMLConverter: TObject;
     function CreateDataSetConverter: TObject;
     function CreateObjectConverter: TObject;
-    
   public
     constructor Create;
     destructor Destroy; override;
-    
     // XML Conversions
     function XMLToJSON(const AXML: string): string; overload;
     function JSONToXML(const AJSON: string): string; overload;
     function XMLToJSON(const AXML: string; const AOptions: string): string; overload;
     function JSONToXML(const AJSON: string; const AOptions: string): string; overload;
-    
     // Dataset Conversions
     function DataSetToJSON(ADataSet: TDataSet): string; overload;
     function JSONToDataSet(const AJSON: string; ADataSet: TDataSet): Boolean; overload;
     function DataSetToJSON(ADataSet: TDataSet; const AOptions: string): string; overload;
     function JSONToDataSet(const AJSON: string; ADataSet: TDataSet; const AOptions: string): Boolean; overload;
-    
     // Object Conversions
     function ObjectToJSON(AObject: TObject): string; overload;
     function JSONToObject(const AJSON: string; AObjectClass: TClass): TObject; overload;
     function ObjectToJSON(AObject: TObject; const AOptions: string): string; overload;
     function JSONToObject(const AJSON: string; AObject: TObject): Boolean; overload;
-    
     // Configuration Methods
     procedure ConfigureXMLConverter(const AConfig: string);
     procedure ConfigureDataSetConverter(const AConfig: string);
     procedure ConfigureObjectConverter(const AConfig: string);
-    
     // Utility Methods
     function GetLastError: string;
     procedure ClearError;

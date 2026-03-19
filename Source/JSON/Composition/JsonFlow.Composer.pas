@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Composer;
 
 interface

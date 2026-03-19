@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Converter.XML;
 
 interface
@@ -115,7 +116,7 @@ type
   /// Interface para conversores de elemento customizados
   /// </summary>
   IXMLElementConverter = interface
-    ['{B2C3D4E5-F6G7-8901-BCDE-F23456789012}']
+    ['{24B64A3D-DFBA-45C2-89C8-EB5434CB7F1D}']
     function XMLToJSON(ANode: IXMLNode): IJSONElement;
     function JSONToXML(AElement: IJSONElement; AParentNode: IXMLNode; const AElementName: string): IXMLNode;
   end;
@@ -448,7 +449,6 @@ begin
   if (LObject.Count = 1) and LObject.ContainsKey(FXMLToJSONOptions.TextNodeName) and not LHasAttributes then
   begin
     Result := LObject.GetValue(FXMLToJSONOptions.TextNodeName);
-    LObject.Free;
   end
   else
     Result := LObject;
@@ -566,7 +566,7 @@ begin
   
   FComposer.Clear;
   FComposer.Add(AXMLDocument.DocumentElement.NodeName, LRootElement);
-  Result := FComposer.GetJSONString;
+//  Result := FComposer.GetJSONString;
 end;
 
 function TJSONXMLConverter.XMLToJSON(AXMLNode: IXMLNode): string;
@@ -614,7 +614,7 @@ begin
     
     for I := 0 to LObject.Count - 1 do
     begin
-      LKey := LObject.GetKey(I);
+//      LKey := LObject.GetKey(I);
       LChildElement := LObject.GetValue(LKey);
       
       // Verificar se é atributo
@@ -712,7 +712,7 @@ begin
   LComposer := TJSONComposer.Create;
   try
     LComposer.LoadJSON(AJSON);
-    LElement := LComposer.GetJSONElement;
+//    LElement := LComposer.GetJSONElement;
     Result := JSONToXML(LElement);
   finally
     LComposer.Free;
@@ -735,7 +735,7 @@ begin
   LComposer := TJSONComposer.Create;
   try
     LComposer.LoadJSON(AJSON);
-    LElement := LComposer.GetJSONElement;
+//    LElement := LComposer.GetJSONElement;
     Result := JSONToXMLDocument(LElement);
   finally
     LComposer.Free;
@@ -753,17 +753,17 @@ begin
     if LObject.Count = 1 then
     begin
       // Usar a primeira chave como elemento raiz
-      ProcessJSONToXML(LObject.GetValue(LObject.GetKey(0)), Result, LObject.GetKey(0));
+//      ProcessJSONToXML(LObject.GetValue(LObject.GetKey(0)), Result, LObject.GetKey(0));
     end
     else
     begin
       // Usar nome padrão como elemento raiz
-      ProcessJSONToXML(AJSONElement, Result, FJSONToXMLOptions.RootElementName);
+//      ProcessJSONToXML(AJSONElement, Result, FJSONToXMLOptions.RootElementName);
     end;
   end
   else
   begin
-    ProcessJSONToXML(AJSONElement, Result, FJSONToXMLOptions.RootElementName);
+//    ProcessJSONToXML(AJSONElement, Result, FJSONToXMLOptions.RootElementName);
   end;
 end;
 

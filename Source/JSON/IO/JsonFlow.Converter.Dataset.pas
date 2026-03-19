@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Converter.Dataset;
 
 interface
@@ -23,6 +24,7 @@ uses
   System.Generics.Collections,
   System.NetEncoding,
   Data.DB,
+  JsonFlow.Navigator,
   JsonFlow.Interfaces,
   JsonFlow.Composer,
   JsonFlow.Objects,
@@ -355,7 +357,7 @@ begin
       AField.AsString := LValue.AsString;
       
     ftSmallint, ftInteger, ftWord, ftAutoInc, ftLargeint:
-      AField.AsLargeInt := LValue.AsInt64;
+      AField.AsLargeInt := LValue.AsInteger;
       
     ftBoolean:
       AField.AsBoolean := LValue.AsBoolean;
@@ -363,9 +365,9 @@ begin
     ftFloat, ftCurrency, ftBCD, ftFMTBcd:
       AField.AsFloat := LValue.AsFloat;
       
-    ftDate, ftTime, ftDateTime, ftTimeStamp:
-      AField.AsDateTime := LValue.AsDateTime;
-      
+//    ftDate, ftTime, ftDateTime, ftTimeStamp:
+//      AField.AsDateTime := LValue.AsDateTime;
+
     ftBlob, ftGraphic, ftTypedBinary:
       begin
         // Decodificar Base64
@@ -439,7 +441,7 @@ begin
   LArray := DatasetToJSONArray(ADataset);
   FComposer.Add('data', LArray);
   
-  Result := FComposer.GetJSONString;
+//  Result := FComposer.GetJSONString;
 end;
 
 function TJSONDatasetConverter.DatasetToJSONArray(ADataset: TDataset): IJSONArray;
@@ -510,19 +512,19 @@ begin
   LComposer := TJSONComposer.Create;
   try
     LComposer.LoadJSON(AJSON);
-    LNavigator := LComposer.Navigator;
-    
-    if LNavigator.HasPath('data') then
-    begin
-      if Supports(LNavigator.GetValue('data'), IJSONArray, LArray) then
-        JSONArrayToDataset(LArray, ADataset, AClearFirst);
-    end
-    else
-    begin
-      // JSON é um array direto
-      if Supports(LComposer.GetJSONElement, IJSONArray, LArray) then
-        JSONArrayToDataset(LArray, ADataset, AClearFirst);
-    end;
+//    LNavigator := LComposer.Navigator;
+
+//    if LNavigator.HasPath('data') then
+//    begin
+//      if Supports(LNavigator.GetValue('data'), IJSONArray, LArray) then
+//        JSONArrayToDataset(LArray, ADataset, AClearFirst);
+//    end
+//    else
+//    begin
+//      // JSON é um array direto
+//      if Supports(LComposer.GetJSONElement, IJSONArray, LArray) then
+//        JSONArrayToDataset(LArray, ADataset, AClearFirst);
+//    end;
   finally
     LComposer.Free;
   end;
@@ -537,7 +539,7 @@ begin
   begin
     ADataset.Close;
     ADataset.Open;
-    ADataset.EmptyDataSet;
+//    ADataset.EmptyDataSet;
   end;
   
   for I := 0 to AArray.Count - 1 do
@@ -621,37 +623,37 @@ begin
   LComposer := TJSONComposer.Create;
   try
     LComposer.LoadJSON(AJSON);
-    if Supports(LComposer.GetJSONElement, IJSONObject, LObject) then
-    begin
-      for I := 0 to ADataset.FieldCount - 1 do
-      begin
-        LField := ADataset.Fields[I];
-        LFieldName := FormatFieldName(LField.FieldName);
-        
-        if LObject.ContainsKey(LFieldName) then
-        begin
-          LElement := LObject.GetValue(LFieldName);
-          LCurrentValue := LField.Value;
-          
-          if Supports(LElement, IJSONValue) then
-          begin
-            case LField.DataType of
-              ftString, ftWideString: LJSONValue := IJSONValue(LElement).AsString;
-              ftInteger, ftSmallint: LJSONValue := IJSONValue(LElement).AsInt64;
-              ftFloat: LJSONValue := IJSONValue(LElement).AsFloat;
-              ftBoolean: LJSONValue := IJSONValue(LElement).AsBoolean;
-              ftDateTime: LJSONValue := IJSONValue(LElement).AsDateTime;
-            else
-              LJSONValue := IJSONValue(LElement).AsString;
-            end;
-            
-            if LCurrentValue <> LJSONValue then
-              LChangedFields.Add(LFieldName);
-          end;
-        end;
-      end;
-    end;
-    
+//    if Supports(LComposer.GetJSONElement, IJSONObject, LObject) then
+//    begin
+//      for I := 0 to ADataset.FieldCount - 1 do
+//      begin
+//        LField := ADataset.Fields[I];
+//        LFieldName := FormatFieldName(LField.FieldName);
+//
+//        if LObject.ContainsKey(LFieldName) then
+//        begin
+//          LElement := LObject.GetValue(LFieldName);
+//          LCurrentValue := LField.Value;
+//
+//          if Supports(LElement, IJSONValue) then
+//          begin
+//            case LField.DataType of
+//              ftString, ftWideString: LJSONValue := IJSONValue(LElement).AsString;
+//              ftInteger, ftSmallint: LJSONValue := IJSONValue(LElement).AsInt64;
+//              ftFloat: LJSONValue := IJSONValue(LElement).AsFloat;
+//              ftBoolean: LJSONValue := IJSONValue(LElement).AsBoolean;
+//              ftDateTime: LJSONValue := IJSONValue(LElement).AsDateTime;
+//            else
+//              LJSONValue := IJSONValue(LElement).AsString;
+//            end;
+//
+//            if LCurrentValue <> LJSONValue then
+//              LChangedFields.Add(LFieldName);
+//          end;
+//        end;
+//      end;
+//    end;
+
     Result := LChangedFields.ToArray;
   finally
     LComposer.Free;

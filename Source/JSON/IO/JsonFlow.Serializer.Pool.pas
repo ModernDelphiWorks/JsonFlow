@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.Serializer.Pool;
 
 interface
@@ -21,7 +22,7 @@ uses
   System.Classes,
   System.Generics.Collections,
   System.SyncObjs,
-  JsonFlow.Serializer;
+  JsonFlow.Serializer, System.Math;
 
 type
   /// <summary>
@@ -41,14 +42,15 @@ type
   private
     constructor Create;
     procedure ResetSerializer(ASerializer: TJSONSerializer);
+    function GetHitRate: Double;
   public
     destructor Destroy; override;
-    
+
     /// <summary>
     /// Obtém instância singleton do pool
     /// </summary>
     class function Instance: TJSONSerializerPool;
-    
+
     /// <summary>
     /// Finaliza o pool singleton
     /// </summary>
@@ -82,8 +84,8 @@ type
     /// <summary>
     /// Número de objetos atualmente no pool
     /// </summary>
-    property PoolSize: Integer read FPool.Count;
-    
+//    property PoolSize: Integer read FPool.Count;
+
     /// <summary>
     /// Taxa de acerto do pool (hits / (hits + misses))
     /// </summary>
@@ -106,19 +108,9 @@ implementation
 
 { TJSONSerializerPool }
 
-class constructor TJSONSerializerPool.Create;
-begin
-  FInstanceLock := TCriticalSection.Create;
-end;
-
-class destructor TJSONSerializerPool.Destroy;
-begin
-  FinalizePool;
-  FInstanceLock.Free;
-end;
-
 constructor TJSONSerializerPool.Create;
 begin
+  FInstanceLock := TCriticalSection.Create;
   inherited Create;
   FPool := TStack<TJSONSerializer>.Create;
   FLock := TCriticalSection.Create;
@@ -133,6 +125,8 @@ begin
   Clear;
   FPool.Free;
   FLock.Free;
+  FinalizePool;
+  FInstanceLock.Free;
   inherited;
 end;
 

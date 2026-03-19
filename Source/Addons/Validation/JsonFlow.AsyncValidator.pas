@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.AsyncValidator;
 
 {
@@ -20,17 +21,6 @@ unit JsonFlow.AsyncValidator;
   Este arquivo implementa um sistema de validação assíncrona que permite
   validar múltiplos documentos JSON em paralelo, melhorando significativamente
   a performance para grandes volumes de dados.
-  
-  Funcionalidades:
-  - Validação em múltiplas threads
-  - Pool de threads configurável
-  - Callbacks para progresso e conclusão
-  - Cancelamento de operações
-  - Priorização de tarefas
-  - Balanceamento de carga
-  
-  Autor: JsonFlow4D Framework
-  Data: 2024
 }
 
 interface
@@ -45,170 +35,164 @@ uses
   JsonFlow.SchemaValidator,
   JsonFlow.Reader;
 
+{$SCOPEDENUMS ON}
+
 type
-  // Prioridade da tarefa de validação
-  TValidationPriority = (vpLow, vpNormal, vpHigh, vpCritical);
-  
-  // Status da validação assíncrona
-  TAsyncValidationStatus = (avsQueued, avsRunning, avsCompleted, avsCancelled, avsError);
-  
-  // Resultado da validação assíncrona
-  TAsyncValidationResult = record
-    TaskId: string;
-    Status: TAsyncValidationStatus;
-    IsValid: Boolean;
-    Errors: TList<TValidationError>;
-    StartTime: TDateTime;
-    EndTime: TDateTime;
-    ErrorMessage: string;
-  end;
-  
-  // Callback para progresso
-  TValidationProgressCallback = procedure(const ATaskId: string; AProgress: Integer; ATotal: Integer) of object;
-  
-  // Callback para conclusão
-  TValidationCompletedCallback = procedure(const AResult: TAsyncValidationResult) of object;
-  
-  // Tarefa de validação
-  TValidationTask = class
-  private
-    FTaskId: string;
-    FJsonData: string;
-    FSchema: IJSONElement;
-    FPriority: TValidationPriority;
-    FProgressCallback: TValidationProgressCallback;
-    FCompletedCallback: TValidationCompletedCallback;
-    FCreatedAt: TDateTime;
-    FCancelled: Boolean;
-    
-  public
-    constructor Create(const ATaskId: string; const AJsonData: string; 
-                     const ASchema: IJSONElement; APriority: TValidationPriority;
-                     AProgressCallback: TValidationProgressCallback;
-                     ACompletedCallback: TValidationCompletedCallback;
-                     ACancelled: Boolean = False);
-    
-    property TaskId: string read FTaskId;
-    property JsonData: string read FJsonData;
-    property Schema: IJSONElement read FSchema;
-    property Priority: TValidationPriority read FPriority;
-    property ProgressCallback: TValidationProgressCallback read FProgressCallback;
-    property CompletedCallback: TValidationCompletedCallback read FCompletedCallback;
-    property CreatedAt: TDateTime read FCreatedAt;
-    property Cancelled: Boolean read FCancelled write FCancelled;
-  end;
-  
-  // Configurações do validador assíncrono
-  TAsyncValidatorConfig = record
-    MaxThreads: Integer;
-    QueueCapacity: Integer;
-    TaskTimeoutSeconds: Integer;
-    EnablePrioritization: Boolean;
-    EnableLoadBalancing: Boolean;
-    ThreadIdleTimeoutSeconds: Integer;
-  end;
-  
-  // Estatísticas do validador assíncrono
-  TAsyncValidatorStats = record
-    TotalTasks: Integer;
-    CompletedTasks: Integer;
-    FailedTasks: Integer;
-    CancelledTasks: Integer;
-    QueuedTasks: Integer;
-    RunningTasks: Integer;
-    AverageExecutionTime: Double;
-    ThroughputPerSecond: Double;
-    ActiveThreads: Integer;
-  end;
-  
-  // Worker thread para validação
-  TValidationWorkerThread = class(TThread)
-  private
-    FValidator: TJSONSchemaValidator;
-    FTaskQueue: TThreadedQueue<TValidationTask>;
-    FStats: TAsyncValidatorStats;
-    FStatsLock: TCriticalSection;
-    FIdleTimeout: Integer;
-    
-    procedure UpdateStats(const ATask: TValidationTask; const AResult: TAsyncValidationResult);
-    
-  protected
-    procedure Execute; override;
-    
-  public
-    constructor Create(ATaskQueue: TThreadedQueue<TValidationTask>; 
-                     AIdleTimeout: Integer);
-    destructor Destroy; override;
-    
-    function GetStats: TAsyncValidatorStats;
-  end;
-  
   // Validador assíncrono principal
   TAsyncValidator = class
+  public type
+    // Prioridade da tarefa de validação
+    TPriority = (
+      Low,
+      Normal,
+      High,
+      Critical
+    );
+    // Status da validação assíncrona
+    TStatus = (
+      Queued,
+      Running,
+      Completed,
+      Cancelled,
+      Error
+    );
+    // Resultado da validação assíncrona
+    TResult = record
+      TaskId: string;
+      Status: TStatus;
+      IsValid: Boolean;
+      Errors: TList<TValidationError>;
+      StartTime: TDateTime;
+      EndTime: TDateTime;
+      ErrorMessage: string;
+    end;
+    // Callback para progresso
+    TProgressCallback = procedure(const ATaskId: string; AProgress: Integer; ATotal: Integer) of object;
+    // Callback para conclusão
+    TCompletedCallback = procedure(const AResult: TResult) of object;
+    // Configurações do validador assíncrono
+    TConfig = record
+      MaxThreads: Integer;
+      QueueCapacity: Integer;
+      TaskTimeoutSeconds: Integer;
+      EnablePrioritization: Boolean;
+      EnableLoadBalancing: Boolean;
+      ThreadIdleTimeoutSeconds: Integer;
+    end;
+    // Estatísticas do validador assíncrono
+    TStats = record
+      TotalTasks: Integer;
+      CompletedTasks: Integer;
+      FailedTasks: Integer;
+      CancelledTasks: Integer;
+      QueuedTasks: Integer;
+      RunningTasks: Integer;
+      AverageExecutionTime: Double;
+      ThroughputPerSecond: Double;
+      ActiveThreads: Integer;
+    end;
+  private type
+    // Tarefa de validação (Interna)
+    TTask = class
+    private
+      FTaskId: string;
+      FJsonData: string;
+      FSchema: IJSONElement;
+      FPriority: TPriority;
+      FProgressCallback: TProgressCallback;
+      FCompletedCallback: TCompletedCallback;
+      FCreatedAt: TDateTime;
+      FCancelled: Boolean;
+    public
+      constructor Create(const ATaskId: string; const AJsonData: string;
+                       const ASchema: IJSONElement; APriority: TPriority;
+                       AProgressCallback: TProgressCallback;
+                       ACompletedCallback: TCompletedCallback;
+                       ACancelled: Boolean = False);
+
+      property TaskId: string read FTaskId;
+      property JsonData: string read FJsonData;
+      property Schema: IJSONElement read FSchema;
+      property Priority: TPriority read FPriority;
+      property ProgressCallback: TProgressCallback read FProgressCallback;
+      property CompletedCallback: TCompletedCallback read FCompletedCallback;
+      property CreatedAt: TDateTime read FCreatedAt;
+      property Cancelled: Boolean read FCancelled write FCancelled;
+    end;
+
+    // Worker thread para validação (Interna)
+    TWorkerThread = class(TThread)
+    private
+      FValidator: TJSONSchemaValidator;
+      FTaskQueue: TThreadedQueue<TTask>;
+      FStats: TStats;
+      FStatsLock: TCriticalSection;
+      FIdleTimeout: Integer;
+      procedure _UpdateStats(const ATask: TTask; const AResult: TResult);
+    protected
+      procedure Execute; override;
+    public
+      constructor Create(ATaskQueue: TThreadedQueue<TTask>;
+                       AIdleTimeout: Integer);
+      destructor Destroy; override;
+      function GetStats: TStats;
+    end;
   private
-    FConfig: TAsyncValidatorConfig;
-    FTaskQueue: TThreadedQueue<TValidationTask>;
-    FWorkerThreads: TList<TValidationWorkerThread>;
-    FRunningTasks: TDictionary<string, TValidationTask>;
-    FCompletedTasks: TDictionary<string, TAsyncValidationResult>;
+    FConfig: TConfig;
+    FTaskQueue: TThreadedQueue<TTask>;
+    FWorkerThreads: TList<TWorkerThread>;
+    FRunningTasks: TDictionary<string, TTask>;
+    FCompletedTasks: TDictionary<string, TResult>;
     FLock: TCriticalSection;
     FActive: Boolean;
     FTaskCounter: Integer;
-    
-    function GenerateTaskId: string;
-    procedure StartWorkerThreads;
-    procedure StopWorkerThreads;
-
-    
+    function _GenerateTaskId: string;
+    procedure _StartWorkerThreads;
+    procedure _StopWorkerThreads;
   public
-    constructor Create(const AConfig: TAsyncValidatorConfig);
+    constructor Create(const AConfig: TConfig);
     destructor Destroy; override;
-    
     // Controle do validador
     procedure Start;
     procedure Stop;
     procedure Pause;
     procedure Resume;
-    
     // Submissão de tarefas
     function SubmitValidation(const AJsonData: string; const ASchema: IJSONElement;
-                             APriority: TValidationPriority = vpNormal;
-                             AProgressCallback: TValidationProgressCallback = nil;
-                             ACompletedCallback: TValidationCompletedCallback = nil): string;
-    
-    function SubmitBatchValidation(const AJsonDataList: TArray<string>; 
+                             APriority: TPriority = TPriority.Normal;
+                             AProgressCallback: TProgressCallback = nil;
+                             ACompletedCallback: TCompletedCallback = nil): string;
+
+    function SubmitBatchValidation(const AJsonDataList: TArray<string>;
                                   const ASchema: IJSONElement;
-                                  APriority: TValidationPriority = vpNormal;
-                                  AProgressCallback: TValidationProgressCallback = nil;
-                                  ACompletedCallback: TValidationCompletedCallback = nil): TArray<string>;
-    
+                                  APriority: TPriority = TPriority.Normal;
+                                  AProgressCallback: TProgressCallback = nil;
+                                  ACompletedCallback: TCompletedCallback = nil): TArray<string>;
     // Controle de tarefas
     function CancelTask(const ATaskId: string): Boolean;
-    function GetTaskStatus(const ATaskId: string): TAsyncValidationStatus;
-    function GetTaskResult(const ATaskId: string): TAsyncValidationResult;
+    function GetTaskStatus(const ATaskId: string): TStatus;
+    function GetTaskResult(const ATaskId: string): TResult;
     function WaitForTask(const ATaskId: string; ATimeoutMs: Integer = -1): Boolean;
     function WaitForAllTasks(ATimeoutMs: Integer = -1): Boolean;
-    
     // Estatísticas e monitoramento
-    function GetStats: TAsyncValidatorStats;
+    function GetStats: TStats;
     function GetQueueSize: Integer;
     function GetActiveThreadCount: Integer;
-    
     // Configuração
-    property Config: TAsyncValidatorConfig read FConfig write FConfig;
+    property Config: TConfig read FConfig write FConfig;
     property Active: Boolean read FActive;
-  end;
-  
+  end; 
   // Singleton para acesso global
   TGlobalAsyncValidator = class
   private
     class var FInstance: TAsyncValidator;
-    class var FLock: TCriticalSection;
-    
+    class var FLock: TCriticalSection;    
   public
     class function Instance: TAsyncValidator;
-    class procedure Initialize(const AConfig: TAsyncValidatorConfig);
+    class procedure Initialize(const AConfig: TAsyncValidator.TConfig);
     class procedure Finalize;
+    class constructor Create;
+    class destructor Destroy;
   end;
 
 implementation
@@ -218,16 +202,15 @@ uses
   System.Math,
   JsonFlow.Objects;
 
-{ TValidationTask }
+{ TAsyncValidator.TTask }
 
-constructor TValidationTask.Create(const ATaskId: string; const AJsonData: string;
-  const ASchema: IJSONElement; APriority: TValidationPriority;
-  AProgressCallback: TValidationProgressCallback;
-  ACompletedCallback: TValidationCompletedCallback;
+constructor TAsyncValidator.TTask.Create(const ATaskId: string; const AJsonData: string;
+  const ASchema: IJSONElement; APriority: TPriority;
+  AProgressCallback: TProgressCallback;
+  ACompletedCallback: TCompletedCallback;
   ACancelled: Boolean = False);
 begin
-  inherited Create;
-  
+  inherited Create;  
   FTaskId := ATaskId;
   FJsonData := AJsonData;
   FSchema := ASchema;
@@ -238,33 +221,30 @@ begin
   FCancelled := ACancelled;
 end;
 
-{ TValidationWorkerThread }
+{ TAsyncValidator.TWorkerThread }
 
-constructor TValidationWorkerThread.Create(ATaskQueue: TThreadedQueue<TValidationTask>;
+constructor TAsyncValidator.TWorkerThread.Create(ATaskQueue: TThreadedQueue<TTask>;
   AIdleTimeout: Integer);
 begin
-  inherited Create(False);
-  
+  inherited Create(False);  
   FValidator := TJSONSchemaValidator.Create;
   FTaskQueue := ATaskQueue;
   FStatsLock := TCriticalSection.Create;
-  FIdleTimeout := AIdleTimeout;
-  
+  FIdleTimeout := AIdleTimeout;  
   FillChar(FStats, SizeOf(FStats), 0);
 end;
 
-destructor TValidationWorkerThread.Destroy;
+destructor TAsyncValidator.TWorkerThread.Destroy;
 begin
   FValidator.Free;
-  FStatsLock.Free;
-  
+  FStatsLock.Free;  
   inherited Destroy;
 end;
 
-procedure TValidationWorkerThread.Execute;
+procedure TAsyncValidator.TWorkerThread.Execute;
 var
-  LTask: TValidationTask;
-  LResult: TAsyncValidationResult;
+  LTask: TTask;
+  LResult: TResult;
   LJsonElement: IJSONElement;
   LJsonReader: TJsonReader;
   LErrors: TList<TValidationError>;
@@ -279,13 +259,13 @@ begin
         try
           // Inicializar resultado
           LResult.TaskId := LTask.TaskId;
-          LResult.Status := avsRunning;
+          LResult.Status := TStatus.Running;
           LResult.StartTime := Now;
           
           // Verificar cancelamento
           if LTask.Cancelled then
           begin
-            LResult.Status := avsCancelled;
+            LResult.Status := TStatus.Cancelled;
             LResult.EndTime := Now;
             LResult.ErrorMessage := 'Task was cancelled';
           end
@@ -308,7 +288,7 @@ begin
                 LErrors := TList<TValidationError>.Create(FValidator.GetErrors);
               
               // Preparar resultado
-              LResult.Status := avsCompleted;
+              LResult.Status := TStatus.Completed;
               LResult.IsValid := LErrors.Count = 0;
               LResult.Errors := LErrors;
               LResult.EndTime := Now;
@@ -316,7 +296,7 @@ begin
             except
               on E: Exception do
               begin
-                LResult.Status := avsError;
+                LResult.Status := TStatus.Error;
                 LResult.IsValid := False;
                 LResult.Errors := TList<TValidationError>.Create;
                 LResult.EndTime := Now;
@@ -326,7 +306,7 @@ begin
           end;
           
           // Atualizar estatísticas
-          UpdateStats(LTask, LResult);
+          _UpdateStats(LTask, LResult);
           
           // Chamar callback se definido
           if Assigned(LTask.CompletedCallback) then
@@ -354,8 +334,8 @@ begin
   end;
 end;
 
-procedure TValidationWorkerThread.UpdateStats(const ATask: TValidationTask;
-  const AResult: TAsyncValidationResult);
+procedure TAsyncValidator.TWorkerThread._UpdateStats(const ATask: TTask;
+  const AResult: TResult);
 var
   LExecutionTime: Double;
 begin
@@ -364,15 +344,15 @@ begin
     Inc(FStats.TotalTasks);
     
     case AResult.Status of
-      avsCompleted:
+      TStatus.Completed:
         begin
           Inc(FStats.CompletedTasks);
           LExecutionTime := MilliSecondsBetween(AResult.EndTime, AResult.StartTime);
           FStats.AverageExecutionTime := (FStats.AverageExecutionTime * (FStats.CompletedTasks - 1) + LExecutionTime) / FStats.CompletedTasks;
         end;
-      avsError:
+      TStatus.Error:
         Inc(FStats.FailedTasks);
-      avsCancelled:
+      TStatus.Cancelled:
         Inc(FStats.CancelledTasks);
     end;
   finally
@@ -380,7 +360,7 @@ begin
   end;
 end;
 
-function TValidationWorkerThread.GetStats: TAsyncValidatorStats;
+function TAsyncValidator.TWorkerThread.GetStats: TAsyncValidator.TStats;
 begin
   FStatsLock.Enter;
   try
@@ -392,15 +372,14 @@ end;
 
 { TAsyncValidator }
 
-constructor TAsyncValidator.Create(const AConfig: TAsyncValidatorConfig);
+constructor TAsyncValidator.Create(const AConfig: TConfig);
 begin
-  inherited Create;
-  
+  inherited Create;  
   FConfig := AConfig;
-  FTaskQueue := TThreadedQueue<TValidationTask>.Create(AConfig.QueueCapacity, 1000, AConfig.QueueCapacity);
-  FWorkerThreads := TList<TValidationWorkerThread>.Create;
-  FRunningTasks := TDictionary<string, TValidationTask>.Create;
-  FCompletedTasks := TDictionary<string, TAsyncValidationResult>.Create;
+  FTaskQueue := TThreadedQueue<TTask>.Create(AConfig.QueueCapacity, 1000, AConfig.QueueCapacity);
+  FWorkerThreads := TList<TWorkerThread>.Create;
+  FRunningTasks := TDictionary<string, TTask>.Create;
+  FCompletedTasks := TDictionary<string, TResult>.Create;
   FLock := TCriticalSection.Create;
   FActive := False;
   FTaskCounter := 0;
@@ -408,18 +387,17 @@ end;
 
 destructor TAsyncValidator.Destroy;
 begin
-  Stop;
-  
+  Stop;  
+
   FTaskQueue.Free;
   FWorkerThreads.Free;
   FRunningTasks.Free;
   FCompletedTasks.Free;
-  FLock.Free;
-  
+  FLock.Free;  
   inherited Destroy;
 end;
 
-function TAsyncValidator.GenerateTaskId: string;
+function TAsyncValidator._GenerateTaskId: string;
 begin
   FLock.Enter;
   try
@@ -437,7 +415,7 @@ begin
     if not FActive then
     begin
       FActive := True;
-      StartWorkerThreads;
+      _StartWorkerThreads;
     end;
   finally
     FLock.Leave;
@@ -451,28 +429,28 @@ begin
     if FActive then
     begin
       FActive := False;
-      StopWorkerThreads;
+      _StopWorkerThreads;
     end;
   finally
     FLock.Leave;
   end;
 end;
 
-procedure TAsyncValidator.StartWorkerThreads;
+procedure TAsyncValidator._StartWorkerThreads;
 var
-  I: Integer;
-  LWorkerThread: TValidationWorkerThread;
+  LIndex: Integer;
+  LWorkerThread: TWorkerThread;
 begin
-  for I := 0 to FConfig.MaxThreads - 1 do
+  for LIndex := 0 to FConfig.MaxThreads - 1 do
   begin
-    LWorkerThread := TValidationWorkerThread.Create(FTaskQueue, FConfig.ThreadIdleTimeoutSeconds);
+    LWorkerThread := TWorkerThread.Create(FTaskQueue, FConfig.ThreadIdleTimeoutSeconds);
     FWorkerThreads.Add(LWorkerThread);
   end;
 end;
 
-procedure TAsyncValidator.StopWorkerThreads;
+procedure TAsyncValidator._StopWorkerThreads;
 var
-  LWorkerThread: TValidationWorkerThread;
+  LWorkerThread: TWorkerThread;
 begin
   // Sinalizar término para todas as threads
   for LWorkerThread in FWorkerThreads do
@@ -489,21 +467,20 @@ begin
 end;
 
 function TAsyncValidator.SubmitValidation(const AJsonData: string;
-  const ASchema: IJSONElement; APriority: TValidationPriority;
-  AProgressCallback: TValidationProgressCallback;
-  ACompletedCallback: TValidationCompletedCallback): string;
+  const ASchema: IJSONElement; APriority: TPriority;
+  AProgressCallback: TProgressCallback;
+  ACompletedCallback: TCompletedCallback): string;
 var
   LTaskId: string;
-  LTask: TValidationTask;
+  LTask: TTask;
   LCancelled: Boolean;
 begin
   if not FActive then
     raise Exception.Create('AsyncValidator is not active');
     
-  LTaskId := GenerateTaskId;
-  LCancelled := False;
-  
-  LTask := TValidationTask.Create(LTaskId, AJsonData, ASchema, APriority,
+  LTaskId := _GenerateTaskId;
+  LCancelled := False;  
+  LTask := TTask.Create(LTaskId, AJsonData, ASchema, APriority,
                                    AProgressCallback, ACompletedCallback, LCancelled);
   
   FLock.Enter;
@@ -511,33 +488,30 @@ begin
     FRunningTasks.Add(LTaskId, LTask);
   finally
     FLock.Leave;
-  end;
-  
+  end;  
   // Adicionar à fila
-  FTaskQueue.PushItem(LTask);
-  
+  FTaskQueue.PushItem(LTask);  
   Result := LTaskId;
 end;
 
 function TAsyncValidator.SubmitBatchValidation(const AJsonDataList: TArray<string>;
-  const ASchema: IJSONElement; APriority: TValidationPriority;
-  AProgressCallback: TValidationProgressCallback;
-  ACompletedCallback: TValidationCompletedCallback): TArray<string>;
+  const ASchema: IJSONElement; APriority: TPriority;
+  AProgressCallback: TProgressCallback;
+  ACompletedCallback: TCompletedCallback): TArray<string>;
 var
-  I: Integer;
+  LIndex: Integer;
 begin
-  SetLength(Result, Length(AJsonDataList));
-  
-  for I := 0 to High(AJsonDataList) do
+  SetLength(Result, Length(AJsonDataList));  
+  for LIndex := 0 to High(AJsonDataList) do
   begin
-    Result[I] := SubmitValidation(AJsonDataList[I], ASchema, APriority,
+    Result[LIndex] := SubmitValidation(AJsonDataList[LIndex], ASchema, APriority,
                                  AProgressCallback, ACompletedCallback);
   end;
 end;
 
 function TAsyncValidator.CancelTask(const ATaskId: string): Boolean;
 var
-  LTask: TValidationTask;
+  LTask: TTask;
 begin
   Result := False;
   
@@ -553,10 +527,10 @@ begin
   end;
 end;
 
-function TAsyncValidator.GetTaskStatus(const ATaskId: string): TAsyncValidationStatus;
+function TAsyncValidator.GetTaskStatus(const ATaskId: string): TStatus;
 var
-  LTask: TValidationTask;
-  LResult: TAsyncValidationResult;
+  LTask: TTask;
+  LResult: TResult;
 begin
   FLock.Enter;
   try
@@ -565,18 +539,18 @@ begin
     else if FRunningTasks.TryGetValue(ATaskId, LTask) then
     begin
       if LTask.Cancelled then
-        Result := avsCancelled
+        Result := TStatus.Cancelled
       else
-        Result := avsRunning;
+        Result := TStatus.Running;
     end
     else
-      Result := avsQueued;
+      Result := TStatus.Queued;
   finally
     FLock.Leave;
   end;
 end;
 
-function TAsyncValidator.GetTaskResult(const ATaskId: string): TAsyncValidationResult;
+function TAsyncValidator.GetTaskResult(const ATaskId: string): TResult;
 begin
   FLock.Enter;
   try
@@ -591,10 +565,9 @@ function TAsyncValidator.WaitForTask(const ATaskId: string; ATimeoutMs: Integer)
 var
   LStartTime: TDateTime;
 begin
-  LStartTime := Now;
-  
+  LStartTime := Now;  
   repeat
-    if GetTaskStatus(ATaskId) in [avsCompleted, avsCancelled, avsError] then
+    if GetTaskStatus(ATaskId) in [TStatus.Completed, TStatus.Cancelled, TStatus.Error] then
       Exit(True);
       
     TThread.Sleep(10);
@@ -619,24 +592,21 @@ begin
   Result := False;
 end;
 
-function TAsyncValidator.GetStats: TAsyncValidatorStats;
+function TAsyncValidator.GetStats: TStats;
 var
-  LWorkerThread: TValidationWorkerThread;
-  LWorkerStats: TAsyncValidatorStats;
+  LWorkerThread: TWorkerThread;
+  LWorkerStats: TAsyncValidator.TStats;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  
+  FillChar(Result, SizeOf(Result), 0); 
   FLock.Enter;
   try
     Result.QueuedTasks := GetQueueSize;
     Result.RunningTasks := FRunningTasks.Count;
-    Result.ActiveThreads := FWorkerThreads.Count;
-    
+    Result.ActiveThreads := FWorkerThreads.Count;   
     // Agregar estatísticas de todas as threads
     for LWorkerThread in FWorkerThreads do
     begin
-      LWorkerStats := LWorkerThread.GetStats;
-      
+      LWorkerStats := LWorkerThread.GetStats;    
       Result.TotalTasks := Result.TotalTasks + LWorkerStats.TotalTasks;
       Result.CompletedTasks := Result.CompletedTasks + LWorkerStats.CompletedTasks;
       Result.FailedTasks := Result.FailedTasks + LWorkerStats.FailedTasks;
@@ -644,8 +614,7 @@ begin
       
       if LWorkerStats.AverageExecutionTime > 0 then
         Result.AverageExecutionTime := (Result.AverageExecutionTime + LWorkerStats.AverageExecutionTime) / 2;
-    end;
-    
+    end;   
     // Calcular throughput
     if Result.AverageExecutionTime > 0 then
       Result.ThroughputPerSecond := 1000 / Result.AverageExecutionTime;
@@ -682,6 +651,17 @@ end;
 
 { TGlobalAsyncValidator }
 
+class constructor TGlobalAsyncValidator.Create;
+begin
+  FLock := TCriticalSection.Create;
+end;
+
+class destructor TGlobalAsyncValidator.Destroy;
+begin
+  Finalize;
+  FLock.Free;
+end;
+
 class function TGlobalAsyncValidator.Instance: TAsyncValidator;
 begin
   if not Assigned(FInstance) then
@@ -691,7 +671,7 @@ begin
       if not Assigned(FInstance) then
       begin
         // Configuração padrão
-        var LConfig: TAsyncValidatorConfig;
+        var LConfig: TAsyncValidator.TConfig;
         LConfig.MaxThreads := TThread.ProcessorCount;
         LConfig.QueueCapacity := 1000;
         LConfig.TaskTimeoutSeconds := 300;
@@ -710,7 +690,7 @@ begin
   Result := FInstance;
 end;
 
-class procedure TGlobalAsyncValidator.Initialize(const AConfig: TAsyncValidatorConfig);
+class procedure TGlobalAsyncValidator.Initialize(const AConfig: TAsyncValidator.TConfig);
 begin
   FLock.Enter;
   try
@@ -737,12 +717,5 @@ begin
     FLock.Leave;
   end;
 end;
-
-initialization
-  TGlobalAsyncValidator.FLock := TCriticalSection.Create;
-
-finalization
-  TGlobalAsyncValidator.Finalize;
-  TGlobalAsyncValidator.FLock.Free;
 
 end.

@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   Fluent and expressive JSON manipulation API for Delphi.
@@ -12,6 +12,7 @@
 }
 
 {$include ../../JsonFlow.inc}
+
 unit JsonFlow.ErrorListPool;
 
 interface
@@ -20,7 +21,10 @@ uses
   System.Generics.Collections,
   System.SyncObjs,
   JsonFlow.Objects,
-  JsonFlow.Interfaces;
+  JsonFlow.Interfaces
+  {$IFDEF USE_STRATUM},
+  Stratum.Pool
+  {$ENDIF}; // Usando o novo Pool Genérico
 
 type
   /// <summary>
@@ -32,11 +36,9 @@ type
     class var FInstance: TErrorListPool;
     class var FLockInstance: TCriticalSection;
   private
-    FPool: TStack<TList<TValidationError>>;
-    FLock: TCriticalSection;
-    FMaxPoolSize: Integer;
-    FCreatedCount: Integer;
-    FReuseCount: Integer;
+    {$IFDEF USE_STRATUM}
+    FPool: TObjectPool<TList<TValidationError>>;
+    {$ENDIF}
   public
     constructor Create;
     destructor Destroy; override;
@@ -63,7 +65,9 @@ type
     /// </summary>
     procedure GetStats(out APoolSize, ACreatedCount, AReuseCount: Integer);
     
-    property MaxPoolSize: Integer read FMaxPoolSize write FMaxPoolSize;
+    {$IFDEF USE_STRATUM}
+    property Pool: TObjectPool<TList<TValidationError>> read FPool;
+    {$ENDIF}
   end;
 
 implementation
@@ -76,18 +80,17 @@ uses
 constructor TErrorListPool.Create;
 begin
   inherited;
-  FPool := TStack<TList<TValidationError>>.Create;
-  FLock := TCriticalSection.Create;
-  FMaxPoolSize := 50; // Limite padrão do pool
-  FCreatedCount := 0;
-  FReuseCount := 0;
+  {$IFDEF USE_STRATUM}
+  // Cria pool com tamanho 50, sem pré-alocação, e dono dos objetos
+  FPool := TObjectPool<TList<TValidationError>>.Create(50, 0, True);
+  {$ENDIF}
 end;
 
 destructor TErrorListPool.Destroy;
 begin
-  Clear;
+  {$IFDEF USE_STRATUM}
   FPool.Free;
-  FLock.Free;
+  {$ENDIF}
   inherited;
 end;
 
@@ -130,24 +133,12 @@ end;
 
 function TErrorListPool.GetList: TList<TValidationError>;
 begin
-  FLock.Enter;
-  try
-    if FPool.Count > 0 then
-    begin
-      Result := FPool.Pop;
-      Inc(FReuseCount);
-    end
-    else
-    begin
-      Result := TList<TValidationError>.Create;
-      Inc(FCreatedCount);
-    end;
-    
-    // Garantir que a lista está limpa
-    Result.Clear;
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  Result := FPool.Get;
+  Result.Clear; // Garante lista limpa
+  {$ELSE}
+  Result := TList<TValidationError>.Create;
+  {$ENDIF}
 end;
 
 procedure TErrorListPool.ReturnList(AList: TList<TValidationError>);
@@ -155,49 +146,32 @@ begin
   if not Assigned(AList) then
     Exit;
     
-  FLock.Enter;
-  try
-    // Limpar a lista antes de retornar ao pool
-    AList.Clear;
-    
-    // Adicionar ao pool apenas se não exceder o limite
-    if FPool.Count < FMaxPoolSize then
-      FPool.Push(AList)
-    else
-      AList.Free; // Liberar se o pool estiver cheio
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  AList.Clear;
+  FPool.Release(AList);
+  {$ELSE}
+  AList.Free;
+  {$ENDIF}
 end;
 
 procedure TErrorListPool.Clear;
-var
-  LList: TList<TValidationError>;
 begin
-  FLock.Enter;
-  try
-    while FPool.Count > 0 do
-    begin
-      LList := FPool.Pop;
-      LList.Free;
-    end;
-    FCreatedCount := 0;
-    FReuseCount := 0;
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  FPool.Clear;
+  {$ENDIF}
 end;
 
 procedure TErrorListPool.GetStats(out APoolSize, ACreatedCount, AReuseCount: Integer);
 begin
-  FLock.Enter;
-  try
-    APoolSize := FPool.Count;
-    ACreatedCount := FCreatedCount;
-    AReuseCount := FReuseCount;
-  finally
-    FLock.Leave;
-  end;
+  {$IFDEF USE_STRATUM}
+  APoolSize := FPool.Count;
+  ACreatedCount := Integer(FPool.CreatedTotal); // Cast seguro para Integer
+  AReuseCount := Integer(FPool.ReuseTotal);
+  {$ELSE}
+  APoolSize := 0;
+  ACreatedCount := 0;
+  AReuseCount := 0;
+  {$ENDIF}
 end;
 
 initialization
@@ -207,7 +181,7 @@ finalization
   try
     TErrorListPool.FreeInstance;
   except
-    // Ignora erros durante finalização para evitar access violations
+    // Ignora erros durante finalização
   end;
 
 end.

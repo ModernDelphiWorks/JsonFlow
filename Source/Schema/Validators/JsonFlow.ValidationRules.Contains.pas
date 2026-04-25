@@ -1,4 +1,4 @@
-{
+﻿{
   ------------------------------------------------------------------------------
   JsonFlow
   Fluent and expressive JSON manipulation API for Delphi.

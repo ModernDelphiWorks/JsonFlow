@@ -1,4 +1,4 @@
-﻿# JsonFlow4D - Exemplos e Demonstrações
+# JsonFlow4D - Exemplos e Demonstrações
 
 Esta pasta contém exemplos e demonstrações organizados por categoria do JsonFlow4D, incluindo a **Interface Unificada de Conversores** e a **Facade Centralizada TJsonFlow**.
 
@@ -49,6 +49,9 @@ if TJsonFlow4D.IsValidJSON(LJSON) then
 ### ✅ **Validators/** - Validadores Customizados
 - **BrazilianValidatorsExample** - Validadores brasileiros
 - **CustomFormatValidators** - Formatos personalizados
+
+### 🧾 **SchemaValidation/** - JSON Schema (diagnósticos e refs)
+- **SchemaRefAndSchemaPathDemo** - Demonstra `$ref` por arquivo e `SchemaPath`
 
 ### 🌊 **FluentSyntax/** - Sintaxe Fluente
 - **FluentSyntaxComparison** - Comparação de sintaxes

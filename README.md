@@ -107,10 +107,13 @@ LComposer.OptimizeForWriting;   // Cache pequeno + batch
 - ✅ **Validação completa de JSON Schema Draft 7**
 - 🎯 **API simples e intuitiva**
 - 🔍 **Mensagens de erro detalhadas**
-- 📍 **Localização precisa de erros (JSON Path)**
+- 📍 **Localização precisa de erros (Path e SchemaPath)**
+- 🔗 **Resolução de `$ref`** (local em `$defs` e por arquivo relativo com base URI)
 - 🎨 **Formatos customizados** extensíveis
 - 🔧 **Validadores personalizados** (CPF, CEP, etc.)
 - 📋 **Registro dinâmico** de novos formatos
+
+Documentação focada em JSON Schema: `Docs/JSONSchema.md`.
 
 ### Performance e Otimização
 - ⚡ **Cache inteligente de validação**

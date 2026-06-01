@@ -1,33 +1,46 @@
 {
-  Compiler			CompilerVersion			Defined Symbol	Used BPL
-  Delphi 12   Athens       	36 				VER360			29
-  Delphi 11.1 Alexandria 	35 				VER350			28
-  Delphi 10.4 Sidney     	34 				VER340			27
-  Delphi 10.3 Rio			33 				VER330			26
-  Delphi 10.2 Tokyo			32 				VER320			25
-  Delphi 10.1 Berlin	 	31				VER310			24
-  Delphi 10 Seattle			30				VER300          23
-  Delphi XE8				29 				VER290          22
-  Delphi XE7				28 				VER280          21
-  Delphi XE6				27 				VER270          20
-  Delphi XE5				26 				VER260          19
-  Delphi XE4				25 				VER250          18
-  Delphi XE3				24 				VER240          17
-  Delphi XE2				23 				VER230          16
-  Delphi XE	        		22 				VER220          15
-  Delphi 2010 	         	21 				VER210          14
+                   Copyright (c) 2016, Isaque Pinheiro
+                          All rights reserved.
+
+                    GNU Lesser General Public License
+                      Versão 3, 29 de junho de 2007
+
+       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+       A todos é permitido copiar e distribuir cópias deste documento de
+       licença, mas mudá-lo não é permitido.
+
+       Esta versão da GNU Lesser General Public License incorpora
+       os termos e condições da versão 3 da GNU General Public License
+       Licença, complementado pelas permissões adicionais listadas no
+       arquivo LICENSE na pasta principal.
 }
 
-{.$DEFINE FMX}
-{.$DEFINE LOAD_DYNAMICALLY}
+{ @abstract(JSONBr Framework.)
+  @created(20 Jul 2016)
+  @author(Isaque Pinheiro <isaquepsp@gmail.com>)
+}
 
-{$IFDEF FMX}
-  {$DEFINE HAS_FMX}
-{$ELSE}
-  {$DEFINE HAS_VCL}
-{$ENDIF}
+{
+  Compiler				 CompilerVersion	Defined Symbol	Used BPL
+  Delphi 11.? ??         36 				VER360			29
+  Delphi 11.1 Alexandria 35 				VER350			28
+  Delphi 10.4 Sidney     34 				VER340			27
+  Delphi 10.3 Rio		 33 				VER330			26
+  Delphi 10.2 Tokyo		 32 				VER320			25
+  Delphi 10.1 Berlin	 31					VER310			24
+  Delphi 10 Seattle		 30					VER300          23
+  Delphi XE8			 29 				VER290          22
+  Delphi XE7			 28 				VER280          21
+  Delphi XE6			 27 				VER270          20
+  Delphi XE5			 26 				VER260          19
+  Delphi XE4			 25 				VER250          18 
+  Delphi XE3			 24 				VER240          17
+  Delphi XE2			 23 				VER230          16
+  Delphi XE	        	 22 				VER220          15
+  Delphi 2010 	         21 				VER210          14
+}
 
-// Delphi Athens
+// Delphi ???
 {$IFDEF VER360}
   {$DEFINE DELPHI14_UP}
   {$DEFINE DELPHI15_UP}
@@ -227,19 +240,6 @@
   {$DEFINE DELPHI14_UP}
 {$ENDIF}
 
-//Lazarus
-{$IFDEF FCP}
-  {$DEFINE DELPHI14_UP}
-{$ENDIF}
-
 {$IFDEF DELPHI15_UP}
   {$DEFINE FORMATSETTINGS}
-{$ENDIF}
-
-{$IFDEF DELPHI17_UP}
-  {$DEFINE HAS_NET_ENCODING}
-{$ELSE IFDEF DELPHI16_UP}
-  {$DEFINE HAS_SOAP_ENCODING}
-{$ELSE}
-  {$DEFINE HAS_ENCDDECD}
 {$ENDIF}

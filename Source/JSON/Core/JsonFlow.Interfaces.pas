@@ -18,7 +18,7 @@ unit JsonFlow.Interfaces;
 interface
 
 uses
-  Rtti,
+  System.Rtti,
   SysUtils,
   Classes,
   TypInfo,

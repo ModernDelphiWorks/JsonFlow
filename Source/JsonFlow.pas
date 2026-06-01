@@ -15,7 +15,7 @@
        arquivo LICENSE na pasta principal.
 }
 
-{ @abstract(JSONBr Framework.)
+{ @abstract(JsonFlow Framework.)
   @created(23 Nov 2020)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
   @author(Telegram : @IsaquePinheiro)
@@ -26,7 +26,7 @@ unit JsonFlow;
 interface
 
 uses
-  Rtti,
+  System.Rtti,
   SysUtils,
   StrUtils,
   Classes,
@@ -39,7 +39,7 @@ uses
   JsonFlow.Builders;
 
 type
-  TJsonBr = class
+  TJsonFlow = class
   strict private
     class var FJsonBuilder: TJsonBuilder;
     class var FJsonWriter: IJsonWriter;
@@ -82,74 +82,74 @@ type
 
 implementation
 
-{ TJSONBr }
+{ TJsonFlow }
 
-class procedure TJsonBr.AddMiddleware(const AEventMiddleware: IEventMiddleware);
+class procedure TJsonFlow.AddMiddleware(const AEventMiddleware: IEventMiddleware);
 begin
   FJsonBuilder.AddMiddleware(AEventMiddleware);
 end;
 
-class function TJsonBr.BeginArray: IJsonWriter;
+class function TJsonFlow.BeginArray: IJsonWriter;
 begin
   Result := FJsonWriter.BeginArray;
 end;
 
-class function TJsonBr.BeginObject(const AValue: String = ''): IJsonWriter;
+class function TJsonFlow.BeginObject(const AValue: String = ''): IJsonWriter;
 begin
   Result := FJsonWriter.BeginObject(AValue);
 end;
 
-class constructor TJsonBr.Create;
+class constructor TJsonFlow.Create;
 begin
   FJsonBuilder := TJsonBuilder.Create;
   FJsonWriter := TJsonWriter.Create(FJsonBuilder);
   FJsonReader := TJsonReader.Create;
 end;
 
-class destructor TJsonBr.Destroy;
+class destructor TJsonFlow.Destroy;
 begin
   FJsonBuilder.Free;
   inherited;
 end;
 
-class function TJsonBr._GetFormatSettings: TFormatSettings;
+class function TJsonFlow._GetFormatSettings: TFormatSettings;
 begin
-  Result := GJsonBrFormatSettings;
+  Result := GJsonFlowFormatSettings;
 end;
 
-class procedure TJsonBr.SaveJsonToFile(const AFileName: String;
+class procedure TJsonFlow.SaveJsonToFile(const AFileName: String;
   const AUtf8: Boolean);
 begin
   FJsonReader.SaveJsonToFile(AFileName, AUtf8);
 end;
 
-class procedure TJsonBr._SetFormatSettings(const Value: TFormatSettings);
+class procedure TJsonFlow._SetFormatSettings(const Value: TFormatSettings);
 begin
-  GJsonBrFormatSettings := Value;
+  GJsonFlowFormatSettings := Value;
 end;
 
-class procedure TJsonBr._SetNotifyEventGetValue(const Value: TNotifyEventGetValue);
+class procedure TJsonFlow._SetNotifyEventGetValue(const Value: TNotifyEventGetValue);
 begin
   FJsonBuilder.OnGetValue := Value;
 end;
 
-class procedure TJsonBr.JsonToObject(const AJson: String; AObject: TObject);
+class procedure TJsonFlow.JsonToObject(const AJson: String; AObject: TObject);
 begin
   FJsonBuilder.JSONToObject(AObject, AJson);
 end;
 
-class function TJsonBr.JsonToObject<T>(const AObject: T;
+class function TJsonFlow.JsonToObject<T>(const AObject: T;
   const AJson: String): Boolean;
 begin
   Result := FJsonBuilder.JSONToObject(TObject(AObject), AJson);
 end;
 
-class function TJsonBr.JsonToObject<T>(const AJson: String): T;
+class function TJsonFlow.JsonToObject<T>(const AJson: String): T;
 begin
   Result := FJsonBuilder.JSONToObject<T>(AJson);
 end;
 
-class function TJsonBr.ObjectListToJsonString(AObjectList: TObjectList<TObject>;
+class function TJsonFlow.ObjectListToJsonString(AObjectList: TObjectList<TObject>;
   AStoreClassName: Boolean): String;
 var
   LFor: Integer;
@@ -171,7 +171,7 @@ begin
   end;
 end;
 
-class function TJsonBr.ObjectListToJsonString<T>(AObjectList: TObjectList<T>;
+class function TJsonFlow.ObjectListToJsonString<T>(AObjectList: TObjectList<T>;
   AStoreClassName: Boolean): String;
 var
   LFor: Integer;
@@ -193,40 +193,40 @@ begin
   end;
 end;
 
-class function TJsonBr.ObjectToJsonString(AObject: TObject;
+class function TJsonFlow.ObjectToJsonString(AObject: TObject;
   AStoreClassName: Boolean): String;
 begin
   Result := FJsonBuilder.ObjectToJSON(AObject, AStoreClassName);
 end;
 
-class procedure TJsonBr.ParseFromFile(const AFileName: String;
+class procedure TJsonFlow.ParseFromFile(const AFileName: String;
   const AUtf8: Boolean);
 begin
   FJsonReader.ParseFromFile(AFileName, AUtf8);
 end;
 
-class function TJsonBr.Reader: IJsonReader;
+class function TJsonFlow.Reader: IJsonReader;
 begin
   Result := FJsonReader;
 end;
 
-class procedure TJsonBr._SetNotifyEventSetValue(const Value: TNotifyEventSetValue);
+class procedure TJsonFlow._SetNotifyEventSetValue(const Value: TNotifyEventSetValue);
 begin
   FJsonBuilder.OnSetValue := Value;
 end;
 
-class function TJsonBr.Write: IJsonWriter;
+class function TJsonFlow.Write: IJsonWriter;
 begin
   Result := FJsonWriter;
 end;
 
-class function TJsonBr.JsonToObjectList(const AJson: String;
+class function TJsonFlow.JsonToObjectList(const AJson: String;
   const AType: TClass): TObjectList<TObject>;
 begin
   Result := FJsonBuilder.JsonToObjectList(AJson, AType);
 end;
 
-class function TJsonBr.JsonToObjectList<T>(const AJson: String): TObjectList<T>;
+class function TJsonFlow.JsonToObjectList<T>(const AJson: String): TObjectList<T>;
 begin
   Result := FJsonBuilder.JsonToObjectList<T>(AJson);
 end;

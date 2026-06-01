@@ -3,11 +3,11 @@ unit JsonFlow.Types;
 interface
 
 uses
-  Rtti,
+  System.Rtti,
   SysUtils;
 
 type
-  EJsonBrException = class(Exception);
+  EJsonFlowException = class(Exception);
 
 //  PDynamicArrayKey = ^TDynamicArrayKey;
 //  TDynamicArrayKey = array[0..MaxInt div SizeOf(String) - 1] of String;

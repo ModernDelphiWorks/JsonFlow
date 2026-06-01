@@ -33,7 +33,7 @@ var
 begin
   Result := HorseJsonFlow('UTF-8');
   LFormatSettings := TFormatSettings.Create('en_US');
-  TJsonBr.FormatSettings := LFormatSettings;
+  TJsonFlow.FormatSettings := LFormatSettings;
 end;
 
 function HorseJsonFlow(const ACharset: String): THorseCallback;
@@ -56,7 +56,7 @@ begin
     if (Res.Content <> nil) and
        (Req.RawWebRequest.ContentType.Contains('application/json')) then
     begin
-      Res.RawWebResponse.Content := TJsonBr.ObjectToJsonString(Res.Content);
+      Res.RawWebResponse.Content := TJsonFlow.ObjectToJsonString(Res.Content);
       Res.RawWebResponse.ContentType := 'application/json; charset=' + Charset;
     end;
     THorseRequest.Res := nil;
@@ -77,9 +77,9 @@ begin
     LJSON := RawWebRequest.Content;
     try
       if LJSON.StartsWith('[') then
-        Result := T(TJsonBr.JsonToObjectList<T>(LJSON))
+        Result := T(TJsonFlow.JsonToObjectList<T>(LJSON))
       else
-        Result := T(TJsonBr.JsonToObject<T>(LJSON));
+        Result := T(TJsonFlow.JsonToObject<T>(LJSON));
     except
       Res.Send('Invalid JSON').Status(THTTPStatus.BadRequest);
       raise EHorseCallbackInterrupted.Create;

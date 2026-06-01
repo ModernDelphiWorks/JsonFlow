@@ -16,7 +16,7 @@
 }
 
 {
-  @abstract(JSONBr Framework.)
+  @abstract(JsonFlow Framework.)
   @created(23 Nov 2020)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
   @author(Telegram : @IsaquePinheiro)
@@ -29,7 +29,7 @@ unit JsonFlow.Builders;
 interface
 
 uses
-  Rtti,
+  System.Rtti,
   Types,
   TypInfo,
   Classes,
@@ -163,7 +163,7 @@ var
 
 implementation
 
-{ TJsonBrObject }
+{ TJsonFlowObject }
 
 function TJsonBuilder.JsonVariant(const AJson: String): Variant;
 begin
@@ -191,7 +191,7 @@ begin
   if LVarData.VType = varByRef or varVariant then
     Result := TJsonData(PVariant(LVarData.VPointer)^)
   else
-    raise EJsonBrException.CreateFmt('JSONBrVariantData.Data(%d<>JSONVariant)', [LVarData.VType]);
+    raise EJsonFlowException.CreateFmt('JsonFlowVariantData.Data(%d<>JSONVariant)', [LVarData.VType]);
 end;
 
 class function TJsonBuilder.StringToJson(const AText: String): String;
@@ -277,7 +277,7 @@ begin
       if VarIsFloat(AValue) then
       begin
         LDouble := AValue;
-        Result := FloatToStr(LDouble, GJsonBrFormatSettings)
+        Result := FloatToStr(LDouble, GJsonFlowFormatSettings)
       end
       else
       if VarIsStr(AValue) then
@@ -337,7 +337,7 @@ begin
         case GetTypeData(LTypeInfo)^.FloatType of
           ftSingle:
             begin
-              Result := StrToFloat(AProperty.GetValue(AInstance).AsString, GJsonBrFormatSettings);
+              Result := StrToFloat(AProperty.GetValue(AInstance).AsString, GJsonFlowFormatSettings);
             end;
           ftDouble:
             begin
@@ -876,7 +876,7 @@ begin
     ExtractStrings([','], [' '], PChar(String(LValue)), LSplitList);
     SetLength(Result, LSplitList.Count);
     for LFor := 0 to LSplitList.Count -1 do
-      Result[LFor] := StrToCurr(LSplitList[LFor], GJsonBrFormatSettings);
+      Result[LFor] := StrToCurr(LSplitList[LFor], GJsonFlowFormatSettings);
   finally
     LSplitList.Free;
   end;
@@ -894,7 +894,7 @@ begin
     ExtractStrings([','], [' '], PChar(String(LValue)), LSplitList);
     SetLength(Result, LSplitList.Count);
     for LFor := 0 to LSplitList.Count -1 do
-      Result[LFor] := StrToFloat(LSplitList[LFor], GJsonBrFormatSettings);
+      Result[LFor] := StrToFloat(LSplitList[LFor], GJsonFlowFormatSettings);
   finally
     LSplitList.Free;
   end;
@@ -1216,7 +1216,7 @@ begin
   Result := True;
 end;
 
-{ TJSONBrVariantData }
+{ TJsonFlowVariantData }
 
 procedure TJsonData.Init;
 begin
@@ -1262,7 +1262,7 @@ begin
     FJsonPair.Kind := TJsonTypeKind.jtkObject
   else
   if FJsonPair.Kind <> TJsonTypeKind.jtkObject then
-    raise EJsonBrException.CreateFmt('AddNameValue(%s) over array', [AName]);
+    raise EJsonFlowException.CreateFmt('AddNameValue(%s) over array', [AName]);
   _ResizeArraysIfNeeded;
   FJsonPair.Values[FJsonPair.Count] := AValue;
   FJsonPair.Names[FJsonPair.Count] := AName;
@@ -1275,7 +1275,7 @@ begin
     FJsonPair.Kind := TJsonTypeKind.jtkArray
   else
   if FJsonPair.Kind <> TJsonTypeKind.jtkArray then
-    raise EJsonBrException.Create('AddValue() over object');
+    raise EJsonFlowException.Create('AddValue() over object');
   _ResizeArraysIfNeeded;
   FJsonPair.Names[FJsonPair.Count] := IntToStr(FJsonPair.Count);
   FJsonPair.Values[FJsonPair.Count] := AValue;
@@ -1405,9 +1405,9 @@ var
   LFor: Integer;
 begin
   if @Self = nil then
-    raise EJsonBrException.Create('Unexpected Value[] access');
+    raise EJsonFlowException.Create('Unexpected Value[] access');
   if AName = '' then
-    raise EJsonBrException.Create('Unexpected Value['''']');
+    raise EJsonFlowException.Create('Unexpected Value['''']');
   LFor := NameIndex(AName);
   if LFor < 0 then
     AddNameValue(AName, AValue)

@@ -561,8 +561,6 @@ function TJSONReader.Read(const AJson: String): IJSONElement;
 var
   LIndex: Integer;
 begin
-  Writeln('Parsing JSON: "', AJson, '"');
-  Writeln('Length of JSON: ', Length(AJson));
   if AJson = '' then
     raise EJsonFlowParseError.Create('Empty JSON string');
   LIndex := 0;

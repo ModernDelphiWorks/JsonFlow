@@ -37,11 +37,8 @@
 To install using the package manager [**Boss**](https://github.com/HashLoad/boss):
 
 ```sh
-boss install JsonFlow4D
+boss install JsonFlow
 ```
-
-> [!NOTE]
-> For historical registry reasons on Boss, the package name is declared as **JsonFlow4D** in its manifest, but the official framework name is **JsonFlow**.
 
 ---
 
@@ -164,11 +161,8 @@ end;
 Para instalar usando o gerenciador de pacotes [**Boss**](https://github.com/HashLoad/boss):
 
 ```sh
-boss install JsonFlow4D
+boss install JsonFlow
 ```
-
-> [!NOTE]
-> Por motivos históricos de registro no Boss, o pacote é declarado como **JsonFlow4D** no manifesto, embora o nome oficial do projeto seja **JsonFlow**.
 
 ---
 

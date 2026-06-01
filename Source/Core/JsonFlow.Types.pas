@@ -1,3 +1,16 @@
+{
+  ------------------------------------------------------------------------------
+  JsonFlow
+  High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
 unit JsonFlow.Types;
 
 interface

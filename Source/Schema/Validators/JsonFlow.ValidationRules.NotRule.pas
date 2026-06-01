@@ -1,12 +1,12 @@
 ﻿{
   ------------------------------------------------------------------------------
   JsonFlow
-  Fluent and expressive JSON manipulation API for Delphi.
+  High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
 
-  SPDX-License-Identifier: Apache-2.0
+  SPDX-License-Identifier: MIT
   Copyright (c) 2025-2026 Isaque Pinheiro
 
-  Licensed under the Apache License, Version 2.0.
+  Licensed under the MIT License.
   See the LICENSE file in the project root for full license information.
   ------------------------------------------------------------------------------
 }

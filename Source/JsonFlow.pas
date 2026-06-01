@@ -1,18 +1,14 @@
 {
-                   Copyright (c) 2020, Isaque Pinheiro
-                          All rights reserved.
+  ------------------------------------------------------------------------------
+  JsonFlow
+  High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
 
-                    GNU Lesser General Public License
-                      Vers�o 3, 29 de junho de 2007
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025-2026 Isaque Pinheiro
 
-       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-       A todos � permitido copiar e distribuir c�pias deste documento de
-       licen�a, mas mud�-lo n�o � permitido.
-
-       Esta vers�o da GNU Lesser General Public License incorpora
-       os termos e condi��es da vers�o 3 da GNU General Public License
-       Licen�a, complementado pelas permiss�es adicionais listadas no
-       arquivo LICENSE na pasta principal.
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
 }
 
 { @abstract(JsonFlow Framework.)

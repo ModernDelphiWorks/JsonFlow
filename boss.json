@@ -1,9 +1,9 @@
 {
-	"name": "JsonFlow",
-	"description": "Biblioteca para serialização, desserialização e manipulação de JSON em Delphi/Object Pascal",
-	"version": "^v0.0.0",
-	"homepage": "",
-	"mainsrc": "./Source",
-	"projects": [],
-	"dependencies": {}
+  "name": "JsonFlow",
+  "description": "Biblioteca para serialização, desserialização e manipulação de JSON em Delphi/Object Pascal",
+  "version": "^v0.0.0",
+  "homepage": "https://github.com/ModernDelphiWorks/JsonFlow",
+  "mainsrc": "./Source",
+  "projects": [],
+  "dependencies": {}
 }

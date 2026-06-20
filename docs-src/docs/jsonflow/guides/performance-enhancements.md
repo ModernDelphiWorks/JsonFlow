@@ -155,18 +155,20 @@ uses
   JsonFlow.Composer.Pool;
 
 var
-  LPooled: TPooledJSONComposer; // <!-- TODO: confirm TPooledJSONComposer API -->
+  LPooled: TPooledJSONComposer;
 begin
   LPooled := TPooledJSONComposer.Create(LPool);
   try
-    // use LPooled.Composer
+    LPooled.Composer.LoadJSON(LJson);
+    LPooled.Composer.SetValue('status', 'ok');
+    ProcessResult(LPooled.Composer.AsJSON);
   finally
     LPooled.Free; // returns composer to pool automatically
   end;
 end;
 ```
 
-<!-- TODO: confirm TPooledJSONComposer property name for the inner IJSONComposer -->
+`TPooledJSONComposer` exposes the borrowed `IJSONComposer` via the `Composer` property (`property Composer: IJSONComposer read FComposer`). Destroying the wrapper calls `ReturnComposer` on the pool automatically.
 
 ## Choosing the right tier
 

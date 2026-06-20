@@ -121,13 +121,37 @@ uses
   JsonFlow.SchemaReader;
 
 var
-  LSchemaReader: TJSONSchemaReader; // <!-- TODO: confirm class name -->
+  LSchemaReader: TJSONSchemaReader;
 begin
-  // ...
+  LSchemaReader := TJSONSchemaReader.Create;
+  try
+    LSchemaReader.LoadFromFile('path/to/schema.json');
+    // or: LSchemaReader.LoadFromString('{"type":"object",...}');
+
+    if not LSchemaReader.Validate('{"name":"Alice"}') then
+    begin
+      for var LErr in LSchemaReader.GetErrors do
+        WriteLn(LErr.Path + ': ' + LErr.Message);
+    end;
+  finally
+    LSchemaReader.Free;
+  end;
 end;
 ```
 
-<!-- TODO: confirm exact TJSONSchemaReader API from JsonFlow.SchemaReader.pas -->
+`TJSONSchemaReader` public API:
+
+| Member | Description |
+|---|---|
+| `Create` | Default constructor (uses Draft 7 validator internally) |
+| `LoadFromFile(AFileName)` | Load and parse schema from a file; returns `Boolean` |
+| `LoadFromString(AJsonString)` | Load and parse schema from a string; returns `Boolean` |
+| `Validate(AJson)` | Validate JSON string against the loaded schema; returns `Boolean` |
+| `Validate(AElement)` | Validate `IJSONElement` against the loaded schema; returns `Boolean` |
+| `Validate(AJson, AJsonSchema)` | Validate JSON string with schema string in one call; returns `Boolean` |
+| `GetErrors` | Returns `TArray<TValidationError>` |
+| `GetVersion` | Returns the detected `TJsonSchemaVersion` |
+| `GetSchema` | Returns the loaded schema as `IJSONElement` |
 
 ## External $ref resolution
 

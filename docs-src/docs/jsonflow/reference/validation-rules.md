@@ -13,7 +13,7 @@ Each Draft 7 keyword is implemented as a separate rule class under `Source\Schem
 |---|---|
 | `type` | `JsonFlow.ValidationRules.Types` |
 | `enum` | `JsonFlow.ValidationRules.Enum` |
-| `const` | <!-- TODO: confirm if const is implemented --> |
+| `const` | `JsonFlow.ValidationRules.Consts` |
 
 ## String keywords
 
@@ -126,8 +126,9 @@ type
     function FormatName: string; override;
   end;
 
-// Register at startup
-TFormatRegistry.Instance.Register('my-format', TMyFormatValidator.Create);
+// Register at startup — RegisterValidator is a class method; Instance is available
+// but registration goes directly through the class method:
+TFormatRegistry.RegisterValidator('my-format', TMyFormatValidator.Create);
 ```
 
-<!-- TODO: confirm TFormatRegistry.Instance registration API from JsonFlow.FormatRegistry.pas -->
+`TFormatRegistry.RegisterValidator` is a class (static) method — it does **not** require calling `.Instance` first. The registry dictionary is class-level. Other class methods: `UnregisterValidator`, `GetValidator`, `IsFormatRegistered`, `GetRegisteredFormats`, `ClearRegistry`.

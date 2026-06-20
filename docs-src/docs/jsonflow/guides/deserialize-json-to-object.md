@@ -63,7 +63,14 @@ Unknown JSON keys (keys without a matching Delphi property) are silently skipped
 
 Enable detection via `TJSONSerializerOptions.DetectCircularReferences`. The `CircularReferenceStrategy` field controls behaviour:
 
-<!-- TODO: confirm available TCircularReferenceStrategy values from JsonFlow.Serializer.CircularRef -->
+The `TCircularReferenceStrategy` enum (unit `JsonFlow.Serializer.CircularRef`) has four values:
+
+| Value | Behaviour |
+|---|---|
+| `crsException` | Raises `ECircularReferenceException` (default) |
+| `crsNull` | Serializes the back-reference as JSON `null` |
+| `crsReference` | Emits a `$ref` string pointing to the first occurrence |
+| `crsIgnore` | Silently skips the back-reference property |
 
 :::warning
 The caller owns the object returned by `JsonToObject<T>`. Always wrap the result in a `try/finally` to avoid memory leaks.

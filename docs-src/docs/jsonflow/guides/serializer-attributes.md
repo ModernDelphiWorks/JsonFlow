@@ -63,11 +63,19 @@ CreatedAt: TDateTime;
 BirthDate: TDateTime;
 ```
 
-### `[JSONFloatFormat('format')]`
-
-<!-- TODO: confirm JSONFloatFormat attribute constructor parameters from JsonFlow.Serializer.Attributes.pas -->
+### `[JSONFloatFormat(ADecimalPlaces, AUseDecimalSeparator?)]`
 
 Overrides the float format for a specific property.
+
+```delphi
+[JSONFloatFormat(2)]         // 2 decimal places, use decimal separator (default True)
+Price: Double;
+
+[JSONFloatFormat(4, False)]  // 4 decimal places, no decimal separator
+Rate: Double;
+```
+
+Constructor: `Create(const ADecimalPlaces: Integer; const AUseDecimalSeparator: Boolean = True)`
 
 ## Attribute inheritance
 

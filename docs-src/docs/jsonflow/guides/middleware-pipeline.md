@@ -86,7 +86,7 @@ Set `ABreak := True` inside a middleware handler to prevent subsequent middlewar
 
 ## Date middleware
 
-JsonFlow ships `TJSONMiddlewareDateTime` (unit `JsonFlow.MiddlewareDatatime`) <!-- TODO: confirm exact class name --> for handling custom date format conversions transparently.
+JsonFlow ships `TMiddlewareDateTime` (unit `JsonFlow.MiddlewareDatatime`) for handling custom date format conversions transparently.
 
 :::tip
 Use middleware for cross-cutting concerns — encryption, PII masking, format normalization — rather than implementing the same logic in each property or model class.

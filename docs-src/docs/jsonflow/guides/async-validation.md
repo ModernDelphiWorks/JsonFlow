@@ -18,26 +18,39 @@ sidebar_position: 9
 ```delphi
 uses
   JsonFlow.AsyncValidator,
-  JsonFlow.Interfaces;
+  JsonFlow.Interfaces,
+  JsonFlow.Reader;
 
 var
+  LConfig: TAsyncValidator.TConfig;
   LValidator: TAsyncValidator;
+  LReader: TJSONReader;
+  LSchema: IJSONElement;
   LTaskId: string;
 begin
-  LValidator := TAsyncValidator.Create;
+  LConfig.MaxThreads := TThread.ProcessorCount; // default
+  LConfig.QueueCapacity := 1000;               // default
+  LConfig.TaskTimeoutSeconds := 300;           // default
+  LConfig.EnablePrioritization := True;
+  LConfig.EnableLoadBalancing := True;
+  LConfig.ThreadIdleTimeoutSeconds := 60;      // default
+
+  LReader := TJSONReader.Create;
+  LSchema := LReader.Read('{"type":"object","required":["name"]}');
+  LReader.Free;
+
+  LValidator := TAsyncValidator.Create(LConfig);
+  LValidator.Start;
   try
-    // Configure (optional — defaults are sensible)
-    // <!-- TODO: confirm TAsyncValidator.Config property name -->
-
-    // Submit a validation task
-    LTaskId := LValidator.Submit(
-      '{"name":"Alice"}',           // JSON data as string
-      '{"type":"object","required":["name"]}', // schema as string
+    // Submit a validation task — schema must be pre-parsed as IJSONElement
+    LTaskId := LValidator.SubmitValidation(
+      '{"name":"Alice"}',  // JSON data as string
+      LSchema,             // schema as IJSONElement
       TAsyncValidator.TPriority.Normal
-    );  // <!-- TODO: confirm Submit method signature -->
+    );
 
-    // Wait for all tasks
-    LValidator.WaitAll; // <!-- TODO: confirm WaitAll method name -->
+    // Wait for all tasks (optional timeout in ms; -1 = infinite)
+    LValidator.WaitForAllTasks(-1);
   finally
     LValidator.Free;
   end;
@@ -87,35 +100,47 @@ Higher-priority tasks are processed before lower-priority tasks in the queue whe
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `MaxThreads` | `Integer` | <!-- TODO: confirm --> | Maximum parallel worker threads |
-| `QueueCapacity` | `Integer` | <!-- TODO: confirm --> | Maximum queued tasks |
-| `TaskTimeoutSeconds` | `Integer` | <!-- TODO: confirm --> | Per-task timeout |
+| `MaxThreads` | `Integer` | `TThread.ProcessorCount` | Maximum parallel worker threads |
+| `QueueCapacity` | `Integer` | `1000` | Maximum queued tasks |
+| `TaskTimeoutSeconds` | `Integer` | `300` | Per-task timeout |
 | `EnablePrioritization` | `Boolean` | `True` | Priority-queue ordering |
 | `EnableLoadBalancing` | `Boolean` | `True` | Distribute load across threads |
-| `ThreadIdleTimeoutSeconds` | `Integer` | <!-- TODO: confirm --> | Idle thread shutdown time |
+| `ThreadIdleTimeoutSeconds` | `Integer` | `60` | Idle thread shutdown time |
 
 ## Callbacks
 
+Completion and progress callbacks are passed per-call to `SubmitValidation` (or `SubmitBatchValidation`), not stored as properties on the validator. Both are `of object` method pointer types (`TCompletedCallback` / `TProgressCallback`), so they must be methods on an object instance.
+
 ```delphi
-// Called when a task completes
-LValidator.OnCompleted :=
-  procedure(const AResult: TAsyncValidator.TResult)
-  begin
-    if AResult.IsValid then
-      WriteLn(AResult.TaskId + ': valid')
-    else
-      WriteLn(AResult.TaskId + ': INVALID (' + IntToStr(AResult.Errors.Count) + ' errors)');
+type
+  TMyHandler = class
+    procedure OnProgress(const ATaskId: string; AProgress, ATotal: Integer);
+    procedure OnCompleted(const AResult: TAsyncValidator.TResult);
   end;
 
-// Called with progress updates
-LValidator.OnProgress :=
-  procedure(const ATaskId: string; AProgress, ATotal: Integer)
-  begin
-    WriteLn(ATaskId + ': ' + IntToStr(AProgress) + '/' + IntToStr(ATotal));
-  end;
+procedure TMyHandler.OnProgress(const ATaskId: string; AProgress, ATotal: Integer);
+begin
+  WriteLn(ATaskId + ': ' + IntToStr(AProgress) + '/' + IntToStr(ATotal));
+end;
+
+procedure TMyHandler.OnCompleted(const AResult: TAsyncValidator.TResult);
+begin
+  if AResult.IsValid then
+    WriteLn(AResult.TaskId + ': valid')
+  else
+    WriteLn(AResult.TaskId + ': INVALID (' + IntToStr(AResult.Errors.Count) + ' errors)');
+end;
+
+// Submitting with callbacks:
+var LHandler := TMyHandler.Create;
+LTaskId := LValidator.SubmitValidation(
+  LJsonData,
+  LSchema,
+  TAsyncValidator.TPriority.Normal,
+  LHandler.OnProgress,   // TProgressCallback (ATaskId, AProgress, ATotal)
+  LHandler.OnCompleted   // TCompletedCallback (AResult)
+);
 ```
-
-<!-- TODO: confirm OnCompleted and OnProgress property names from TAsyncValidator -->
 
 :::note
 `TList<TValidationError>` in `TResult.Errors` is owned by the result. Callers must free it when done if they hold a reference to the result record outside the callback scope.

@@ -208,4 +208,20 @@ Implements `IJSONSchemaValidator`.
 
 See [Async validation](../guides/async-validation) for the full guide.
 
-<!-- TODO: confirm Submit, WaitAll, OnCompleted, OnProgress method/property names -->
+| Member | Description |
+|---|---|
+| `Create(AConfig)` | Requires explicit `TConfig` record |
+| `Start` / `Stop` / `Pause` / `Resume` | Lifecycle control |
+| `SubmitValidation(AJsonData, ASchema, APriority?, AProgressCallback?, ACompletedCallback?)` | Submit one task; returns `TaskId: string` |
+| `SubmitBatchValidation(AJsonDataList, ASchema, APriority?, ...)` | Submit multiple tasks; returns `TArray<string>` of task IDs |
+| `CancelTask(ATaskId)` | Cancel a queued/running task; returns `Boolean` |
+| `GetTaskStatus(ATaskId)` | Returns `TStatus` |
+| `GetTaskResult(ATaskId)` | Returns `TResult`; raises if not completed |
+| `WaitForTask(ATaskId, ATimeoutMs?)` | Block until task done; returns `Boolean` |
+| `WaitForAllTasks(ATimeoutMs?)` | Block until queue is empty; returns `Boolean` |
+| `GetStats` | Returns `TStats` record |
+| `GetQueueSize` | Returns `Integer` |
+| `GetActiveThreadCount` | Returns `Integer` |
+| `Config` | Read/write `TConfig` property |
+
+Callbacks (`TProgressCallback`, `TCompletedCallback`) are passed per-call to `SubmitValidation`, not stored as properties on the validator instance.

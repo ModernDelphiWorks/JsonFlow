@@ -77,7 +77,7 @@ if LJson <> '' then
 
 ```delphi
 LOptions.DetectCircularReferences := True;
-LOptions.CircularReferenceStrategy := ...; // <!-- TODO: confirm available strategies -->
+LOptions.CircularReferenceStrategy := crsException; // crsException | crsNull | crsReference | crsIgnore
 ```
 
 ---
@@ -107,7 +107,12 @@ if not LValidator.Validate(LData) then ...
 uses
   JsonFlow.SchemaRefIndy; // or JsonFlow.SchemaRefSynapse
 
-// <!-- TODO: confirm how to register IJSONSchemaRef with TSchemaValidator -->
+// The concrete resolver classes (TJSONSchemaRefIndy / TJSONSchemaRefSynapse) implement
+// IJSONSchemaRef.FetchReference. No public registration API is exposed on
+// TJSONSchemaValidator / IJSONSchemaValidator in the current release — external
+// $ref resolution is handled internally by the schema compiler's HTTP resolution
+// path (TSchemaCompiler.EnableHTTPResolution). Consult the framework release notes
+// for the intended external-ref registration surface.
 ```
 
 ---

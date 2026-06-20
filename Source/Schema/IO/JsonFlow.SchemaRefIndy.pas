@@ -14,6 +14,10 @@
 {$include ../../JsonFlow.inc}
 unit JsonFlow.SchemaRefIndy;
 
+// Optional HTTP $ref backend — requires the third-party Indy library.
+// Define JSONFLOW_HTTP_INDY (and have Indy) to compile it in (PLANO Fase 5: HTTP is opt-in).
+{$IFDEF JSONFLOW_HTTP_INDY}
+
 interface
 
 uses
@@ -68,5 +72,10 @@ begin
   end;
   LStream.Free;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

@@ -14,6 +14,10 @@
 {$include ../../JsonFlow.inc}
 unit JsonFlow.SchemaRefSynapse;
 
+// Optional HTTP $ref backend — requires the third-party Synapse library (SynapseHTTP).
+// Define JSONFLOW_HTTP_SYNAPSE (and have Synapse) to compile it in (PLANO Fase 5: HTTP is opt-in).
+{$IFDEF JSONFLOW_HTTP_SYNAPSE}
+
 interface
 
 uses
@@ -67,5 +71,10 @@ begin
     LStream.Free;
   end;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

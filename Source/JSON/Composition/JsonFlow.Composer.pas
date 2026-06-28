@@ -1329,14 +1329,14 @@ function TJSONComposer.SuggestKeys: TArray<String>;
 var
   LSuggestions: TArray<TJSONSuggestion>;
   LKeys: TList<String>;
-  I: Integer;
+  LFor: Integer;
 begin
   LSuggestions := GetSuggestions;
   LKeys := TList<String>.Create;
   try
-    for I := 0 to Length(LSuggestions) - 1 do
-      if LSuggestions[I].SuggestionType = 'key' then
-        LKeys.Add(LSuggestions[I].Value);
+    for LFor := 0 to Length(LSuggestions) - 1 do
+      if LSuggestions[LFor].SuggestionType = 'key' then
+        LKeys.Add(LSuggestions[LFor].Value);
     Result := LKeys.ToArray;
   finally
     LKeys.Free;

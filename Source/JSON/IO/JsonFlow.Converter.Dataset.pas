@@ -410,16 +410,16 @@ end;
 
 procedure TJSONDatasetConverter.AddFieldDefs(AComposer: IJSONComposer; ADataset: TDataset);
 var
-  I: Integer;
+  LFor: Integer;
 begin
   AComposer.BeginArray('fieldDefs');
-  for I := 0 to ADataset.FieldDefs.Count - 1 do
+  for LFor := 0 to ADataset.FieldDefs.Count - 1 do
   begin
     AComposer.BeginObject
-      .Add('name', ADataset.FieldDefs[I].Name)
-      .Add('dataType', Ord(ADataset.FieldDefs[I].DataType))
-      .Add('size', ADataset.FieldDefs[I].Size)
-      .Add('required', ADataset.FieldDefs[I].Required)
+      .Add('name', ADataset.FieldDefs[LFor].Name)
+      .Add('dataType', Ord(ADataset.FieldDefs[LFor].DataType))
+      .Add('size', ADataset.FieldDefs[LFor].Size)
+      .Add('required', ADataset.FieldDefs[LFor].Required)
     .EndObject;
   end;
   AComposer.EndArray;
@@ -482,16 +482,16 @@ end;
 function TJSONDatasetConverter.RecordToJSONObject(ADataset: TDataset): IJSONObject;
 var
   LObject: IJSONObject;
-  I: Integer;
+  LFor: Integer;
   LField: TField;
   LFieldName: string;
   LElement: IJSONElement;
 begin
   LObject := TJSONObject.Create;
   
-  for I := 0 to ADataset.FieldCount - 1 do
+  for LFor := 0 to ADataset.FieldCount - 1 do
   begin
-    LField := ADataset.Fields[I];
+    LField := ADataset.Fields[LFor];
     LFieldName := FormatFieldName(LField.FieldName);
     LElement := ConvertFieldValue(LField);
     
@@ -531,7 +531,7 @@ end;
 
 procedure TJSONDatasetConverter.JSONArrayToDataset(AArray: IJSONArray; ADataset: TDataset; const AClearFirst: Boolean);
 var
-  I: Integer;
+  LFor: Integer;
   LObject: IJSONObject;
 begin
   if AClearFirst then
@@ -541,9 +541,9 @@ begin
 //    ADataset.EmptyDataSet;
   end;
   
-  for I := 0 to AArray.Count - 1 do
+  for LFor := 0 to AArray.Count - 1 do
   begin
-    if Supports(AArray.GetItem(I), IJSONObject, LObject) then
+    if Supports(AArray.GetItem(LFor), IJSONObject, LObject) then
     begin
       ADataset.Append;
       try
@@ -559,14 +559,14 @@ end;
 
 procedure TJSONDatasetConverter.JSONObjectToRecord(AObject: IJSONObject; ADataset: TDataset);
 var
-  I: Integer;
+  LFor: Integer;
   LField: TField;
   LFieldName: string;
   LElement: IJSONElement;
 begin
-  for I := 0 to ADataset.FieldCount - 1 do
+  for LFor := 0 to ADataset.FieldCount - 1 do
   begin
-    LField := ADataset.Fields[I];
+    LField := ADataset.Fields[LFor];
     LFieldName := FormatFieldName(LField.FieldName);
     
     if AObject.ContainsKey(LFieldName) then
@@ -612,7 +612,7 @@ var
   LComposer: TJSONComposer;
   LObject: IJSONObject;
   LChangedFields: TList<string>;
-  I: Integer;
+  LFor: Integer;
   LField: TField;
   LFieldName: string;
   LElement: IJSONElement;
@@ -624,9 +624,9 @@ begin
     LComposer.LoadJSON(AJSON);
 //    if Supports(LComposer.GetJSONElement, IJSONObject, LObject) then
 //    begin
-//      for I := 0 to ADataset.FieldCount - 1 do
+//      for LFor := 0 to ADataset.FieldCount - 1 do
 //      begin
-//        LField := ADataset.Fields[I];
+//        LField := ADataset.Fields[LFor];
 //        LFieldName := FormatFieldName(LField.FieldName);
 //
 //        if LObject.ContainsKey(LFieldName) then

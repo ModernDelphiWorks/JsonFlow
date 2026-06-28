@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -313,7 +313,7 @@ var
   LChildElements: TDictionary<string, TList<IXMLNode>>;
   LElementName: string;
   LElementList: TList<IXMLNode>;
-  I: Integer;
+  LFor: Integer;
   LTextContent: string;
   LHasAttributes: Boolean;
   LHasChildren: Boolean;
@@ -380,9 +380,9 @@ begin
     case FXMLToJSONOptions.AttributeHandling of
       ahAsProperties:
         begin
-          for I := 0 to ANode.AttributeNodes.Count - 1 do
+          for LFor := 0 to ANode.AttributeNodes.Count - 1 do
           begin
-            LChildNode := ANode.AttributeNodes[I];
+            LChildNode := ANode.AttributeNodes[LFor];
             LObject.Add(FXMLToJSONOptions.AttributePrefix + LChildNode.NodeName, 
                        DetectValueType(LChildNode.Text));
           end;
@@ -390,9 +390,9 @@ begin
       ahAsMetadata:
         begin
           var LMetadata := TJSONObject.Create;
-          for I := 0 to ANode.AttributeNodes.Count - 1 do
+          for LFor := 0 to ANode.AttributeNodes.Count - 1 do
           begin
-            LChildNode := ANode.AttributeNodes[I];
+            LChildNode := ANode.AttributeNodes[LFor];
             LMetadata.Add(LChildNode.NodeName, DetectValueType(LChildNode.Text));
           end;
           LObject.Add('metadata', LMetadata);
@@ -403,9 +403,9 @@ begin
   // Agrupar elementos filhos por nome
   LChildElements := TDictionary<string, TList<IXMLNode>>.Create;
   try
-    for I := 0 to ANode.ChildNodes.Count - 1 do
+    for LFor := 0 to ANode.ChildNodes.Count - 1 do
     begin
-      LChildNode := ANode.ChildNodes[I];
+      LChildNode := ANode.ChildNodes[LFor];
       LElementName := LChildNode.NodeName;
       
       if not LChildElements.ContainsKey(LElementName) then
@@ -456,14 +456,14 @@ end;
 
 function TJSONXMLConverter.ProcessXMLAttributes(ANode: IXMLNode): IJSONObject;
 var
-  I: Integer;
+  LFor: Integer;
   LAttrNode: IXMLNode;
 begin
   Result := TJSONObject.Create;
   
-  for I := 0 to ANode.AttributeNodes.Count - 1 do
+  for LFor := 0 to ANode.AttributeNodes.Count - 1 do
   begin
-    LAttrNode := ANode.AttributeNodes[I];
+    LAttrNode := ANode.AttributeNodes[LFor];
     Result.Add(FXMLToJSONOptions.AttributePrefix + LAttrNode.NodeName, 
                DetectValueType(LAttrNode.Text));
   end;
@@ -601,7 +601,7 @@ var
   LObject: IJSONObject;
   LArray: IJSONArray;
   LValue: IJSONValue;
-  I: Integer;
+  LFor: Integer;
   LKey: string;
   LChildElement: IJSONElement;
 begin
@@ -612,9 +612,9 @@ begin
   begin
     LNewNode := AParentNode.AddChild(SanitizeElementName(AElementName));
     
-    for I := 0 to LObject.Count - 1 do
+    for LFor := 0 to LObject.Count - 1 do
     begin
-//      LKey := LObject.GetKey(I);
+//      LKey := LObject.GetKey(LFor);
       LChildElement := LObject.GetValue(LKey);
       
       // Verificar se é atributo
@@ -638,9 +638,9 @@ begin
   end
   else if Supports(AElement, IJSONArray, LArray) then
   begin
-    for I := 0 to LArray.Count - 1 do
+    for LFor := 0 to LArray.Count - 1 do
     begin
-      LChildElement := LArray.GetItem(I);
+      LChildElement := LArray.GetItem(LFor);
       ProcessJSONToXML(LChildElement, AParentNode, AElementName);
     end;
   end
@@ -922,16 +922,16 @@ function TMixedContentConverter.XMLToJSON(ANode: IXMLNode): IJSONElement;
 var
   LObject: IJSONObject;
   LArray: IJSONArray;
-  I: Integer;
+  LFor: Integer;
   LChildNode: IXMLNode;
 begin
   LObject := TJSONObject.Create;
   LArray := TJSONArray.Create;
   
   // Processar conteúdo misto como array de elementos
-  for I := 0 to ANode.ChildNodes.Count - 1 do
+  for LFor := 0 to ANode.ChildNodes.Count - 1 do
   begin
-    LChildNode := ANode.ChildNodes[I];
+    LChildNode := ANode.ChildNodes[LFor];
     
     if LChildNode.NodeType = ntText then
     begin

@@ -71,14 +71,23 @@ begin
     Exit;
   end;
   LYYYY := 0; LMM := 0; LDD := 0; LHH := 0; LMI := 0; LSS := 0; LMS := 0;
+  // A DATA (yyyy-mm-dd) e obrigatoria; a parte de HORA e OPCIONAL. Antes a cadeia
+  // AND exigia hh:nn:ss e devolvia 0 para uma string so-data, zerando datas de dia
+  // inteiro (vencimento/data-cadastro) no round-trip JSON. TryEncodeDateTime guarda
+  // valores invalidos (devolve 0 = comportamento anterior). Timestamp completo
+  // continua parseando identico (retrocompativel).
   if TryStrToInt(Copy(AValue, 1, 4), LYYYY) and
      TryStrToInt(Copy(AValue, 6, 2), LMM) and
-     TryStrToInt(Copy(AValue, 9, 2), LDD) and
-     TryStrToInt(Copy(AValue, 12, 2), LHH) and
-     TryStrToInt(Copy(AValue, 15, 2), LMI) and
-     TryStrToInt(Copy(AValue, 18, 2), LSS) then
+     TryStrToInt(Copy(AValue, 9, 2), LDD) then
   begin
-    Result := EncodeDateTime(LYYYY, LMM, LDD, LHH, LMI, LSS, LMS);
+    if Length(AValue) >= 19 then
+    begin
+      TryStrToInt(Copy(AValue, 12, 2), LHH);
+      TryStrToInt(Copy(AValue, 15, 2), LMI);
+      TryStrToInt(Copy(AValue, 18, 2), LSS);
+    end;
+    if not TryEncodeDateTime(LYYYY, LMM, LDD, LHH, LMI, LSS, LMS, Result) then
+      Result := 0;
   end
   else
     Result := 0;

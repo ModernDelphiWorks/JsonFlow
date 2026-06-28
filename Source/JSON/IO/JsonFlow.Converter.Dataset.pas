@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -94,7 +94,7 @@ type
   /// </summary>
   TJSONDatasetConverter = class
   private
-    FComposer: TJSONComposer;
+    FComposer: IJSONComposer;
     FOptions: TDatasetToJSONOptions;
     FFieldMappings: TDictionary<string, TFieldMapping>;
     FCustomConverters: TDictionary<string, IFieldConverter>;
@@ -104,8 +104,8 @@ type
     function ConvertFieldValue(AField: TField): IJSONElement;
     procedure SetFieldValue(AField: TField; AElement: IJSONElement);
     function GetFieldConverter(const AFieldName: string): IFieldConverter;
-    procedure AddMetadata(AComposer: TJSONComposer; ADataset: TDataset);
-    procedure AddFieldDefs(AComposer: TJSONComposer; ADataset: TDataset);
+    procedure AddMetadata(AComposer: IJSONComposer; ADataset: TDataset);
+    procedure AddFieldDefs(AComposer: IJSONComposer; ADataset: TDataset);
   public
     constructor Create(const AOptions: TDatasetToJSONOptions);
     destructor Destroy; override;
@@ -221,7 +221,6 @@ destructor TJSONDatasetConverter.Destroy;
 begin
   FCustomConverters.Free;
   FFieldMappings.Free;
-  FComposer.Free;
   inherited;
 end;
 
@@ -396,7 +395,7 @@ begin
     Result := nil;
 end;
 
-procedure TJSONDatasetConverter.AddMetadata(AComposer: TJSONComposer; ADataset: TDataset);
+procedure TJSONDatasetConverter.AddMetadata(AComposer: IJSONComposer; ADataset: TDataset);
 begin
   AComposer.BeginObject('metadata')
     .Add('recordCount', ADataset.RecordCount)
@@ -409,7 +408,7 @@ begin
   .EndObject;
 end;
 
-procedure TJSONDatasetConverter.AddFieldDefs(AComposer: TJSONComposer; ADataset: TDataset);
+procedure TJSONDatasetConverter.AddFieldDefs(AComposer: IJSONComposer; ADataset: TDataset);
 var
   I: Integer;
 begin
@@ -441,7 +440,7 @@ begin
   LArray := DatasetToJSONArray(ADataset);
   FComposer.Add('data', LArray);
   
-//  Result := FComposer.GetJSONString;
+  Result := FComposer.AsJSON(True);
 end;
 
 function TJSONDatasetConverter.DatasetToJSONArray(ADataset: TDataset): IJSONArray;

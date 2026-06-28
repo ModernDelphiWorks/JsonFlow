@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -81,10 +81,16 @@ type
       const AElement: IJSONElement);
     function _JSONFromProperty(const AProperty: TRttiProperty; const AInstance: TObject;
       const AStoreClassName: Boolean): IJSONElement;
+    function _SerializeTValue(const AValue: TValue; const AStoreClassName: Boolean): IJSONElement;
     function _CreateNestedArray(const AArrayType: TRttiDynamicArrayType;
       const AJSONArray: IJSONArray): TValue;
     function _JSONToVariant(const AElement: IJSONElement): Variant;
     function _JSONToElement(const AValue: Variant): IJSONElement;
+    
+    // Direct stream private writers
+    procedure _WriteObject(AObject: TObject; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
+    procedure _WriteTValue(const AValue: TValue; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
+    function _EscapeString(const AValue: string): string;
   public
     constructor Create; overload;
     constructor Create(const AFormatSettings: TFormatSettings; const AUseISO8601DateFormat: Boolean = True); overload;
@@ -92,6 +98,10 @@ type
     destructor Destroy; override;
     function FromObject(AObject: TObject; AStoreClassName: Boolean = False): IJSONElement;
     function ToObject(const AElement: IJSONElement; AObject: TObject): Boolean;
+    
+    // Direct stream public API
+    function SerializeToString(AObject: TObject; AStoreClassName: Boolean = False): string;
+    procedure SerializeToStream(AObject: TObject; AStream: TStream; AStoreClassName: Boolean = False);
   public
     procedure OnLog(const ALogProc: TProc<String>);
     property Middlewares: TList<IEventMiddleware> read FMiddlewares;
@@ -208,14 +218,19 @@ begin
     if not Assigned(LRttiType) then
       raise EInvalidOperation.Create('RTTI not available for class ' + AClass.ClassName);
     LProperties := TList<TRttiProperty>.Create;
-    for LProp in LRttiType.GetProperties do
-    begin
-      if LProp.IsReadable then
+    try
+      for LProp in LRttiType.GetProperties do
       begin
-        LProperties.Add(LProp);
+        if LProp.IsReadable then
+        begin
+          LProperties.Add(LProp);
+        end;
       end;
+      FTypeCache.Add(AClass, TPair<TRttiType, TList<TRttiProperty>>.Create(LRttiType, LProperties));
+    except
+      LProperties.Free;
+      raise;
     end;
-    FTypeCache.Add(AClass, TPair<TRttiType, TList<TRttiProperty>>.Create(LRttiType, LProperties));
   end;
 end;
 
@@ -223,18 +238,26 @@ function TJSONSerializer._JSONFromProperty(const AProperty: TRttiProperty; const
   const AStoreClassName: Boolean): IJSONElement;
 var
   LValue: TValue;
-  LValueIndex: TValue;
-  LObj: TObject;
-  LArray: IJSONArray;
   LFor: Integer;
   LMiddle: IEventMiddleware;
   LGetMiddle: IGetValueMiddleware;
   LResult: Variant;
   LBreak: Boolean;
-  LTypeInfo: PTypeInfo;
+  LConverter: IJSONPropertyConverter;
 begin
   if not Assigned(AInstance) then
     raise EArgumentNilException.Create('Instance cannot be nil');
+
+  // Custom property converter
+  if FOptions.ProcessAttributes then
+  begin
+    LConverter := TJSONAttributeHelper.GetCustomConverter(AProperty);
+    if Assigned(LConverter) then
+    begin
+      Result := LConverter.ToJSON(AProperty.GetValue(AInstance), AProperty);
+      Exit;
+    end;
+  end;
 
   // Middlewares
   for LFor := 0 to FMiddlewares.Count - 1 do
@@ -253,38 +276,47 @@ begin
   end;
 
   LValue := AProperty.GetValue(AInstance);
-  case AProperty.PropertyType.TypeKind of
+  Result := _SerializeTValue(LValue, AStoreClassName);
+end;
+
+function TJSONSerializer._SerializeTValue(const AValue: TValue; const AStoreClassName: Boolean): IJSONElement;
+var
+  LObj: TObject;
+  LArray: IJSONArray;
+  LFor: Integer;
+  LValueIndex: TValue;
+  LTypeInfo: PTypeInfo;
+begin
+  case AValue.Kind of
     tkInteger, tkInt64:
-      Result := TJSONValueInteger.Create(LValue.AsInt64);
+      Result := TJSONValueInteger.Create(AValue.AsInt64);
     tkFloat:
       begin
-        LTypeInfo := AProperty.PropertyType.Handle;
+        LTypeInfo := AValue.TypeInfo;
         if (LTypeInfo = TypeInfo(TDateTime)) or (LTypeInfo = TypeInfo(TDate)) or (LTypeInfo = TypeInfo(TTime)) then
-          Result := TJSONValueDateTime.Create(AProperty.GetValue(AInstance).AsExtended)
-        else
+          Result := TJSONValueDateTime.Create(AValue.AsExtended)
+        else if Assigned(LTypeInfo) then
+        begin
           case GetTypeData(LTypeInfo)^.FloatType of
-            ftSingle:
-              Result := TJSONValueFloat.Create(StrToFloat(LValue.AsString, FFormatSettings), FFormatSettings);
-            ftDouble:
-              Result := TJSONValueFloat.Create(LValue.AsExtended, FFormatSettings);
-            ftExtended:
-              Result := TJSONValueFloat.Create(LValue.AsExtended, FFormatSettings);
-            ftComp:
-              Result := TJSONValueFloat.Create(LValue.AsExtended, FFormatSettings);
+            ftSingle, ftDouble, ftExtended, ftComp:
+              Result := TJSONValueFloat.Create(AValue.AsExtended, FFormatSettings);
             ftCurr:
-              Result := TJSONValueFloat.Create(LValue.AsCurrency, FFormatSettings);
+              Result := TJSONValueFloat.Create(AValue.AsCurrency, FFormatSettings);
           end;
+        end
+        else
+          Result := TJSONValueFloat.Create(AValue.AsExtended, FFormatSettings);
       end;
     tkString, tkLString, tkWString, tkUString:
-      Result := TJSONValueString.Create(LValue.AsString);
+      Result := TJSONValueString.Create(AValue.AsString);
     tkEnumeration:
-      if AProperty.PropertyType.Handle = TypeInfo(Boolean) then
-        Result := TJSONValueBoolean.Create(LValue.AsBoolean)
+      if AValue.TypeInfo = TypeInfo(Boolean) then
+        Result := TJSONValueBoolean.Create(AValue.AsBoolean)
       else
-        Result := TJSONValueString.Create(LValue.ToString);
+        Result := TJSONValueString.Create(AValue.ToString);
     tkClass:
       begin
-        LObj := LValue.AsObject;
+        LObj := AValue.AsObject;
         if Assigned(LObj) then
           Result := FromObject(LObj, AStoreClassName)
         else
@@ -293,34 +325,10 @@ begin
     tkDynArray:
       begin
         LArray := TJSONArray.Create;
-        for LFor := 0 to LValue.GetArrayLength - 1 do
+        for LFor := 0 to AValue.GetArrayLength - 1 do
         begin
-          LValueIndex := LValue.GetArrayElement(LFor);
-          case LValueIndex.Kind of
-            tkInteger, tkInt64:
-              LArray.Add(TJSONValueInteger.Create(LValueIndex.AsInt64));
-            tkFloat:
-              LArray.Add(TJSONValueFloat.Create(LValueIndex.AsExtended, FFormatSettings));
-            tkString, tkLString, tkWString, tkUString:
-              LArray.Add(TJSONValueString.Create(LValueIndex.AsString));
-            tkEnumeration:
-              if LValueIndex.TypeInfo = TypeInfo(Boolean) then
-                LArray.Add(TJSONValueBoolean.Create(LValueIndex.AsBoolean))
-              else
-                LArray.Add(TJSONValueString.Create(LValueIndex.ToString));
-            tkClass:
-              begin
-                LObj := LValueIndex.AsObject;
-                if Assigned(LObj) then
-                  LArray.Add(FromObject(LObj, AStoreClassName))
-                else
-                  LArray.Add(TJSONValueNull.Create);
-              end;
-            tkDynArray:
-              LArray.Add(_JSONFromProperty(AProperty, LValueIndex.AsObject, AStoreClassName));
-            else
-              LArray.Add(TJSONValueNull.Create);
-          end;
+          LValueIndex := AValue.GetArrayElement(LFor);
+          LArray.Add(_SerializeTValue(LValueIndex, AStoreClassName));
         end;
         Result := LArray;
       end;
@@ -408,24 +416,28 @@ begin
     tkClass:
       begin
         SetLength(LObjectList, AJSONArray.Count);
-        for LFor := 0 to AJSONArray.Count - 1 do
-          if Supports(AJSONArray.GetItem(LFor), IJSONObject) then
+        try
+          for LFor := 0 to AJSONArray.Count - 1 do
           begin
-            LObject := AArrayType.ElementType.AsInstance.MetaclassType.Create;
-            try
-              ToObject(AJSONArray.GetItem(LFor), LObject);
+            if Supports(AJSONArray.GetItem(LFor), IJSONObject) then
+            begin
+              LObject := AArrayType.ElementType.AsInstance.MetaclassType.Create;
               LObjectList[LFor] := LObject;
-            except
-              LObject.Free;
-              raise;
+              ToObject(AJSONArray.GetItem(LFor), LObject);
             end;
           end;
-        try
-          Result := TValue.From<TArray<TObject>>(LObjectList);
-        finally
+          
+          var LValues: TArray<TValue>;
+          SetLength(LValues, Length(LObjectList));
+          for LFor := 0 to Length(LObjectList) - 1 do
+            LValues[LFor] := LObjectList[LFor];
+            
+          Result := TValue.FromArray(AArrayType.Handle, LValues);
+        except
           for LObject in LObjectList do
             if Assigned(LObject) then
               LObject.Free;
+          raise;
         end;
       end;
     tkDynArray:
@@ -456,12 +468,12 @@ var
   LSetMiddle: ISetValueMiddleware;
   LResult: Variant;
   LBreak: Boolean;
+  LIntValue: Integer;
 begin
-  if not AProperty.IsWritable then
-    Exit;
   if not Assigned(AInstance) then
     raise EArgumentNilException.Create('Instance cannot be nil');
-
+  if not AProperty.IsWritable then
+    Exit;
   // Middlewares
   for LFor := 0 to FMiddlewares.Count - 1 do
   begin
@@ -513,9 +525,20 @@ begin
           AProperty.SetValue(AInstance, TJSONValueString(LValueInterface).Value);
     tkEnumeration:
       if AProperty.PropertyType.Handle = TypeInfo(Boolean) then
+      begin
         if Supports(AElement, IJSONValue, LValueInterface) then
           if LValueInterface is TJSONValueBoolean then
             AProperty.SetValue(AInstance, TJSONValueBoolean(LValueInterface).Value);
+      end
+      else
+      begin
+        if Supports(AElement, IJSONValue, LValueInterface) then
+        begin
+          LIntValue := GetEnumValue(AProperty.PropertyType.Handle, LValueInterface.AsString);
+          if LIntValue <> -1 then
+            AProperty.SetValue(AInstance, TValue.FromOrdinal(AProperty.PropertyType.Handle, LIntValue));
+        end;
+      end;
     tkClass:
       begin
         LObject := AProperty.GetValue(AInstance).AsObject;
@@ -529,14 +552,7 @@ begin
           LArrayType := AProperty.PropertyType as TRttiDynamicArrayType;
           LValue := _CreateNestedArray(LArrayType, LArray);
           if LValue.IsArray then
-          begin
-            if LArrayType.ElementType.TypeKind = tkDynArray then
-              AProperty.SetValue(AInstance, LValue)
-            else if LArrayType.ElementType.TypeKind = tkFloat then
-              AProperty.SetValue(AInstance, LValue)
-            else
-              AProperty.SetValue(AInstance, LValue);
-          end;
+            AProperty.SetValue(AInstance, LValue);
         end;
       end;
   end;
@@ -590,6 +606,7 @@ var
   LProp: TRttiProperty;
   LJsonObj: IJSONObject;
   LElement: IJSONElement;
+  LPropName: string;
 begin
   if not Assigned(AObject) then
     raise EArgumentNilException.Create('Object cannot be nil');
@@ -605,8 +622,29 @@ begin
 
     for LProp in LTypeInfo.Value do
     begin
+      if FOptions.ProcessAttributes then
+      begin
+        if TJSONAttributeHelper.ShouldIgnoreProperty(LProp) then
+          Continue;
+
+        if not TJSONAttributeHelper.ShouldIncludeValue(LProp, LProp.GetValue(AObject)) then
+          Continue;
+
+        LPropName := TJSONAttributeHelper.GetJSONPropertyName(LProp);
+      end
+      else
+      begin
+        if FOptions.IgnoreNullValues and LProp.GetValue(AObject).IsEmpty then
+          Continue;
+        LPropName := LProp.Name;
+      end;
+
       LElement := _JSONFromProperty(LProp, AObject, AStoreClassName);
-      LJsonObj.Add(LProp.Name, LElement);
+
+      if FOptions.IgnoreNullValues and (LElement is TJSONValueNull) then
+        Continue;
+
+      LJsonObj.Add(LPropName, LElement);
     end;
     Result := LJsonObj;
   except
@@ -627,6 +665,7 @@ var
   LJsonObj: IJSONObject;
   LProp: TRttiProperty;
   LKey: String;
+  LConverter: IJSONPropertyConverter;
 begin
   if not Assigned(AObject) then
     raise EArgumentNilException.Create('Object cannot be nil');
@@ -642,11 +681,227 @@ begin
 
   for LProp in LTypeInfo.Value do
   begin
-    LKey := LProp.Name;
+    if FOptions.ProcessAttributes then
+    begin
+      if TJSONAttributeHelper.ShouldIgnoreProperty(LProp) then
+        Continue;
+      LKey := TJSONAttributeHelper.GetJSONPropertyName(LProp);
+    end
+    else
+      LKey := LProp.Name;
+
     if LJsonObj.ContainsKey(LKey) then
+    begin
+      if FOptions.ProcessAttributes then
+      begin
+        LConverter := TJSONAttributeHelper.GetCustomConverter(LProp);
+        if Assigned(LConverter) then
+        begin
+          LProp.SetValue(AObject, LConverter.FromJSON(LJsonObj.GetValue(LKey), LProp));
+          Continue;
+        end;
+      end;
+
       _JSONToProperty(LProp, AObject, LJsonObj.GetValue(LKey));
+    end;
   end;
   Result := True;
+end;
+
+function TJSONSerializer._EscapeString(const AValue: string): string;
+var
+  LBuilder: TStringBuilder;
+  LFor: Integer;
+  LChar: Char;
+begin
+  LBuilder := TStringBuilder.Create;
+  try
+    for LFor := 1 to Length(AValue) do
+    begin
+      LChar := AValue[LFor];
+      case LChar of
+        '"': LBuilder.Append('\"');
+        '\': LBuilder.Append('\\');
+        #8: LBuilder.Append('\b');
+        #9: LBuilder.Append('\t');
+        #10: LBuilder.Append('\n');
+        #12: LBuilder.Append('\f');
+        #13: LBuilder.Append('\r');
+        #0..#7, #11, #14..#31:
+          LBuilder.Append('\u00' + IntToHex(Ord(LChar), 2));
+        else
+          LBuilder.Append(LChar);
+      end;
+    end;
+    Result := LBuilder.ToString;
+  finally
+    LBuilder.Free;
+  end;
+end;
+
+procedure TJSONSerializer._WriteTValue(const AValue: TValue; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
+var
+  LObj: TObject;
+  LFor: Integer;
+  LArrayLen: Integer;
+  LTypeInfo: PTypeInfo;
+  LDouble: Double;
+  LDate: TDateTime;
+begin
+  case AValue.Kind of
+    tkInteger, tkInt64:
+      ABuilder.Append(AValue.AsInt64);
+    tkFloat:
+      begin
+        LTypeInfo := AValue.TypeInfo;
+        if (LTypeInfo = TypeInfo(TDateTime)) or (LTypeInfo = TypeInfo(TDate)) or (LTypeInfo = TypeInfo(TTime)) then
+        begin
+          LDate := AValue.AsExtended;
+          ABuilder.Append('"');
+          if FUseISO8601DateFormat then
+            ABuilder.Append(DateTimeToIso8601(LDate, True))
+          else if FOptions.DateTimeFormat <> '' then
+            ABuilder.Append(FormatDateTime(FOptions.DateTimeFormat, LDate))
+          else
+            ABuilder.Append(DateTimeToIso8601(LDate, True));
+          ABuilder.Append('"');
+        end
+        else
+        begin
+          LDouble := AValue.AsExtended;
+          ABuilder.Append(FormatFloat(FOptions.FloatFormat, LDouble, FFormatSettings));
+        end;
+      end;
+    tkChar, tkWChar, tkLString, tkWString, tkUString:
+      begin
+        ABuilder.Append('"');
+        ABuilder.Append(_EscapeString(AValue.AsString));
+        ABuilder.Append('"');
+      end;
+    tkEnumeration:
+      begin
+        if AValue.TypeInfo = TypeInfo(Boolean) then
+        begin
+          if AValue.AsBoolean then
+            ABuilder.Append('true')
+          else
+            ABuilder.Append('false');
+        end
+        else
+        begin
+          ABuilder.Append('"');
+          ABuilder.Append(GetEnumName(AValue.TypeInfo, AValue.AsOrdinal));
+          ABuilder.Append('"');
+        end;
+      end;
+    tkClass:
+      begin
+        LObj := AValue.AsObject;
+        if not Assigned(LObj) then
+          ABuilder.Append('null')
+        else
+          _WriteObject(LObj, ABuilder, AStoreClassName);
+      end;
+    tkDynArray:
+      begin
+        LArrayLen := AValue.GetArrayLength;
+        ABuilder.Append('[');
+        for LFor := 0 to LArrayLen - 1 do
+        begin
+          if LFor > 0 then
+            ABuilder.Append(',');
+          _WriteTValue(AValue.GetArrayElement(LFor), ABuilder, AStoreClassName);
+        end;
+        ABuilder.Append(']');
+      end;
+    else
+      ABuilder.Append('null');
+  end;
+end;
+
+procedure TJSONSerializer._WriteObject(AObject: TObject; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
+var
+  LClass: TClass;
+  LTypeInfo: TPair<TRttiType, TList<TRttiProperty>>;
+  LProp: TRttiProperty;
+  LPropName: string;
+  LValue: TValue;
+  LFirst: Boolean;
+begin
+  if not Assigned(AObject) then
+  begin
+    ABuilder.Append('null');
+    Exit;
+  end;
+
+  LClass := AObject.ClassType;
+  _CacheType(LClass);
+  LTypeInfo := FTypeCache[LClass];
+
+  ABuilder.Append('{');
+  LFirst := True;
+
+  if AStoreClassName then
+  begin
+    ABuilder.Append('"$class":"');
+    ABuilder.Append(LClass.ClassName);
+    ABuilder.Append('"');
+    LFirst := False;
+  end;
+
+  for LProp in LTypeInfo.Value do
+  begin
+    LValue := LProp.GetValue(AObject);
+
+    if FOptions.IgnoreNullValues and LValue.IsEmpty then
+      Continue;
+
+    if FOptions.ProcessAttributes then
+    begin
+      if TJSONAttributeHelper.ShouldIgnoreProperty(LProp) then
+        Continue;
+      if not TJSONAttributeHelper.ShouldIncludeValue(LProp, LValue) then
+        Continue;
+      LPropName := TJSONAttributeHelper.GetJSONPropertyName(LProp);
+    end
+    else
+      LPropName := LProp.Name;
+
+    if not LFirst then
+      ABuilder.Append(',');
+    LFirst := False;
+
+    ABuilder.Append('"');
+    ABuilder.Append(LPropName);
+    ABuilder.Append('":');
+
+    _WriteTValue(LValue, ABuilder, AStoreClassName);
+  end;
+  ABuilder.Append('}');
+end;
+
+function TJSONSerializer.SerializeToString(AObject: TObject; AStoreClassName: Boolean): string;
+var
+  LBuilder: TStringBuilder;
+begin
+  LBuilder := TStringBuilder.Create;
+  try
+    _WriteObject(AObject, LBuilder, AStoreClassName);
+    Result := LBuilder.ToString;
+  finally
+    LBuilder.Free;
+  end;
+end;
+
+procedure TJSONSerializer.SerializeToStream(AObject: TObject; AStream: TStream; AStoreClassName: Boolean);
+var
+  LStr: string;
+  LBytes: TBytes;
+begin
+  LStr := SerializeToString(AObject, AStoreClassName);
+  LBytes := TEncoding.UTF8.GetBytes(LStr);
+  if Length(LBytes) > 0 then
+    AStream.WriteBuffer(LBytes[0], Length(LBytes));
 end;
 
 { TJSONSerializerFactory }

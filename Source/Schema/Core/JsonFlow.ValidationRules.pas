@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -53,11 +53,13 @@ uses
   JsonFlow.ValidationRules.PatternProperties,
   JsonFlow.ValidationRules.PropertyNames,
   JsonFlow.ValidationRules.Conditional,
-  JsonFlow.ValidationRules.Ref;
+  JsonFlow.ValidationRules.Ref,
+  JsonFlow.ValidationRules.Dependencies;
 
 type
   TBaseValidationRule = JsonFlow.ValidationRules.Base.TBaseValidationRule;
   TTypeRule = JsonFlow.ValidationRules.Types.TTypeRule;
+  TDependenciesRule = JsonFlow.ValidationRules.Dependencies.TDependenciesRule;
   TMinimumRule = JsonFlow.ValidationRules.Minimum.TMinimumRule;
   TMaximumRule = JsonFlow.ValidationRules.Maximum.TMaximumRule;
   TMinLengthRule = JsonFlow.ValidationRules.MinLength.TMinLengthRule;

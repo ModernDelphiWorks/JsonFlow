@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -192,6 +192,14 @@ type
     function Evaluate(const AValue: IJSONElement; const ASubschema: IJSONElement; const AContext: TValidationContext): TValidationResult;
   end;
 
+  TSubschemaRule = class(TBaseValidationRule)
+  private
+    FCompiledSchema: TCompiledSchema;
+  public
+    constructor Create(const ACompiledSchema: TCompiledSchema);
+    function Validate(const AValue: IJSONElement; const AContext: TObject): TValidationResult; override;
+  end;
+
 implementation
 
 uses
@@ -199,6 +207,42 @@ uses
   System.Math,
   System.Generics.Defaults,
   JsonFlow.Reader;
+
+{ TSubschemaRule }
+
+constructor TSubschemaRule.Create(const ACompiledSchema: TCompiledSchema);
+begin
+  inherited Create('subschema');
+  FCompiledSchema := ACompiledSchema;
+end;
+
+function TSubschemaRule.Validate(const AValue: IJSONElement; const AContext: TObject): TValidationResult;
+var
+  LRule: IValidationRule;
+  LSubResult: TValidationResult;
+  LErrors: TList<TValidationError>;
+  LError: TValidationError;
+begin
+  LErrors := TList<TValidationError>.Create;
+  try
+    for LRule in FCompiledSchema.Rules do
+    begin
+      LSubResult := LRule.Validate(AValue, AContext);
+      if not LSubResult.IsValid then
+      begin
+        for LError in LSubResult.Errors do
+          LErrors.Add(LError);
+      end;
+    end;
+
+    if LErrors.Count = 0 then
+      Result := TValidationResult.Success(TValidationContext(AContext).GetFullPath)
+    else
+      Result := TValidationResult.Failure(TValidationContext(AContext).GetFullPath, LErrors.ToArray);
+  finally
+    LErrors.Free;
+  end;
+end;
 
 { TSubschemaEvaluator }
 
@@ -237,6 +281,8 @@ var
   LSchemaValue: IJSONValue;
   LCompiled: TCompiledSchema;
   LSubContext: TValidationContext;
+  LSchemaObj: IJSONObject;
+  LRefValue: IJSONValue;
 begin
   Result := TValidationResult.Success(AContext.GetFullPath);
 
@@ -254,6 +300,17 @@ begin
   LCompiled := FCompiler.Compile(LSchema);
   LSubContext := TValidationContext.Create(AContext.Schema, AContext.GetFullPath, AContext, AContext.Resolver, AContext.Evaluator);
   try
+    if Supports(ASubschema, IJSONObject, LSchemaObj) and LSchemaObj.ContainsKey('$ref') then
+    begin
+      if Supports(LSchemaObj.GetValue('$ref'), IJSONValue, LRefValue) then
+      begin
+        if LRefValue.AsString.StartsWith('#') then
+        begin
+          LSubContext.SchemaPath := LRefValue.AsString;
+        end;
+      end;
+    end;
+
     Result := FVisitor.Visit(AValue, LSubContext, LCompiled);
   finally
     LSubContext.Free;
@@ -890,6 +947,47 @@ begin
         end;
       end;
 
+      if LSchemaObj.ContainsKey('dependencies') then
+      begin
+        var LDependenciesObj := LSchemaObj.GetValue('dependencies') as IJSONObject;
+        var LPropertyDeps := TDictionary<string, TArray<string>>.Create;
+        var LSchemaDeps := TDictionary<string, IValidationRule>.Create;
+        try
+          var LDepPair: IJSONPair;
+          for LDepPair in LDependenciesObj.Pairs do
+          begin
+            var LDepKey := LDepPair.Key;
+            var LDepVal := LDepPair.Value;
+            
+            var LDepArray: IJSONArray;
+            if Supports(LDepVal, IJSONArray, LDepArray) then
+            begin
+              var LPropsList: TArray<string>;
+              SetLength(LPropsList, LDepArray.Count);
+              for var LIndex := 0 to LDepArray.Count - 1 do
+                LPropsList[LIndex] := (LDepArray.GetItem(LIndex) as IJSONValue).AsString;
+              LPropertyDeps.Add(LDepKey, LPropsList);
+            end
+            else
+            begin
+              // É uma dependência de esquema
+              var LCompiledDepSchema := Compile(LDepVal);
+              LSchemaDeps.Add(LDepKey, TSubschemaRule.Create(LCompiledDepSchema));
+            end;
+          end;
+          
+          if (LPropertyDeps.Count > 0) or (LSchemaDeps.Count > 0) then
+          begin
+            LRules.Add(TDependenciesRule.Create(LPropertyDeps, LSchemaDeps));
+            LPropertyDeps := nil;
+            LSchemaDeps := nil;
+          end;
+        finally
+          LPropertyDeps.Free;
+          LSchemaDeps.Free;
+        end;
+      end;
+
       if LSchemaObj.ContainsKey('items') then
       begin
         var LItemsElement := LSchemaObj.GetValue('items');
@@ -1113,10 +1211,13 @@ begin
   // Fase 2: Resolver URI relativa com Base URI
   LResolvedURI := _ResolveBaseURI(ARefPath, LCurrentBaseURI);
 
-  // Suporte básico para referências locais (#/$defs/...)
-  if ARefPath.StartsWith('#/$defs/') then
+  // Suporte básico para referências locais (#/$defs/... ou #/definitions/...)
+  if ARefPath.StartsWith('#/$defs/') or ARefPath.StartsWith('#/definitions/') then
   begin
-    LDefName := ARefPath.Substring(8); // Remove '#/$defs/'
+    if ARefPath.StartsWith('#/$defs/') then
+      LDefName := ARefPath.Substring(8)
+    else
+      LDefName := ARefPath.Substring(14);
 
     // Usar o schema raiz armazenado
     if Supports(FRootSchema, IJSONObject, LRootSchema) then
@@ -1124,6 +1225,15 @@ begin
       if LRootSchema.ContainsKey('$defs') then
       begin
         LDefsObj := LRootSchema.GetValue('$defs') as IJSONObject;
+        if LDefsObj.ContainsKey(LDefName) then
+        begin
+          Result := LDefsObj.GetValue(LDefName);
+        end;
+      end;
+
+      if not Assigned(Result) and LRootSchema.ContainsKey('definitions') then
+      begin
+        LDefsObj := LRootSchema.GetValue('definitions') as IJSONObject;
         if LDefsObj.ContainsKey(LDefName) then
         begin
           Result := LDefsObj.GetValue(LDefName);

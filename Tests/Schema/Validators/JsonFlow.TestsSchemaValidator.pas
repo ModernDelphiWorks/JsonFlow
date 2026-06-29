@@ -1,4 +1,4 @@
-﻿unit JsonFlow.TestsSchemaValidator;
+unit JsonFlow.TestsSchemaValidator;
 
 interface
 
@@ -82,6 +82,12 @@ type
     // Testes para Condicionais
     [Test]
     procedure TestValidate_IfThenElse;
+    [Test]
+    procedure TestValidate_Dependencies;
+    [Test]
+    procedure TestValidate_DefinitionsAlias;
+    [Test]
+    procedure TestValidate_SchemaPathDiagnostics;
   end;
 
 implementation
@@ -508,7 +514,64 @@ begin
   LJson := '7';
   Assert.IsFalse(FReader.Validate(LJson), 'Should fail when number is not multiple of specified value');
 end;
+procedure TJSONSchemaValidatorTests.TestValidate_Dependencies;
+var
+  LSchema, LJson: string;
+begin
+  // Dependências de Propriedade
+  LSchema := '{"type": "object", "dependencies": {"credit_card": ["billing_address"]}}';
+  FReader.LoadFromString(LSchema);
+  
+  LJson := '{"credit_card": "1234", "billing_address": "Main St"}';
+  Assert.IsTrue(FReader.Validate(LJson), 'Property dependency satisfied');
+  
+  LJson := '{"credit_card": "1234"}';
+  Assert.IsFalse(FReader.Validate(LJson), 'Property dependency missing dependent field');
 
+  // Dependências de Esquema
+  LSchema := '{"type": "object", "dependencies": {"billing_address": {"properties": {"billing_address": {"type": "string"}}}}}';
+  FReader.LoadFromString(LSchema);
+  
+  LJson := '{"billing_address": "Main St"}';
+  Assert.IsTrue(FReader.Validate(LJson), 'Schema dependency matches string');
+  
+  LJson := '{"billing_address": 123}';
+  Assert.IsFalse(FReader.Validate(LJson), 'Schema dependency fails on invalid type');
+end;
+
+procedure TJSONSchemaValidatorTests.TestValidate_DefinitionsAlias;
+var
+  LSchema, LJson: string;
+begin
+  // Caso 1: Schema tem '$defs', mas o ref chama 'definitions'
+  LSchema := '{"$defs": {"user": {"type": "string"}}, "properties": {"name": {"$ref": "#/definitions/user"}}}';
+  FReader.LoadFromString(LSchema);
+  LJson := '{"name": "Alice"}';
+  Assert.IsTrue(FReader.Validate(LJson), 'Should resolve definitions alias inside $defs');
+
+  // Caso 2: Schema tem 'definitions', mas o ref chama '$defs'
+  LSchema := '{"definitions": {"user": {"type": "string"}}, "properties": {"name": {"$ref": "#/$defs/user"}}}';
+  FReader.LoadFromString(LSchema);
+  LJson := '{"name": "Alice"}';
+  Assert.IsTrue(FReader.Validate(LJson), 'Should resolve $defs alias inside definitions');
+end;
+
+procedure TJSONSchemaValidatorTests.TestValidate_SchemaPathDiagnostics;
+var
+  LSchema, LJson: string;
+  LErrors: TArray<TValidationError>;
+begin
+  LSchema := '{"type": "object", "properties": {"age": {"type": "integer", "minimum": 18}}}';
+  FReader.LoadFromString(LSchema);
+  LJson := '{"age": 15}';
+  
+  Assert.IsFalse(FReader.Validate(LJson));
+  
+  LErrors := FReader.GetErrors;
+  Assert.IsTrue(Length(LErrors) > 0, 'Should return validation errors');
+  
+  Assert.AreEqual('/properties/age/minimum', LErrors[0].SchemaPath, 'SchemaPath should be complete');
+end;
 
 initialization
   TDUnitX.RegisterTestFixture(TJSONSchemaValidatorTests);

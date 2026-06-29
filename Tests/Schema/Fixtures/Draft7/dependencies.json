@@ -1,0 +1,66 @@
+[
+    {
+        "description": "dependencies of property",
+        "schema": {
+            "dependencies": {
+                "bar": ["foo"]
+            }
+        },
+        "tests": [
+            {
+                "description": "neither",
+                "data": {},
+                "valid": true
+            },
+            {
+                "description": "nondependent",
+                "data": {"foo": 1},
+                "valid": true
+            },
+            {
+                "description": "both",
+                "data": {"foo": 1, "bar": 2},
+                "valid": true
+            },
+            {
+                "description": "missing dependency",
+                "data": {"bar": 2},
+                "valid": false
+            }
+        ]
+    },
+    {
+        "description": "dependencies of schema",
+        "schema": {
+            "dependencies": {
+                "bar": {
+                    "properties": {
+                        "foo": {"type": "integer"}
+                    }
+                }
+            }
+        },
+        "tests": [
+            {
+                "description": "neither",
+                "data": {},
+                "valid": true
+            },
+            {
+                "description": "nondependent",
+                "data": {"foo": "not an integer"},
+                "valid": true
+            },
+            {
+                "description": "both valid",
+                "data": {"foo": 1, "bar": 2},
+                "valid": true
+            },
+            {
+                "description": "missing dependency",
+                "data": {"foo": "not an integer", "bar": 2},
+                "valid": false
+            }
+        ]
+    }
+]

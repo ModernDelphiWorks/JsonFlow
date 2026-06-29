@@ -88,12 +88,14 @@ type
     procedure TestValidate_DefinitionsAlias;
     [Test]
     procedure TestValidate_SchemaPathDiagnostics;
+    [Test]
+    procedure TestValidate_OfficialSuiteDraft07;
   end;
 
 implementation
 
 uses
-  System.SysUtils;
+  System.SysUtils, System.IOUtils, JsonFlow.TestsSchemaSuiteHelper;
 
 procedure TJSONSchemaValidatorTests.Setup;
 begin
@@ -571,6 +573,14 @@ begin
   Assert.IsTrue(Length(LErrors) > 0, 'Should return validation errors');
   
   Assert.AreEqual('/properties/age/minimum', LErrors[0].SchemaPath, 'SchemaPath should be complete');
+end;
+
+procedure TJSONSchemaValidatorTests.TestValidate_OfficialSuiteDraft07;
+var
+  LFixturePath: string;
+begin
+  LFixturePath := TPath.Combine(TPath.Combine(TPath.Combine(ExtractFilePath(ParamStr(0)), 'Fixtures'), 'Draft7'), 'dependencies.json');
+  TJSONSchemaTestSuiteRunner.RunSuite(LFixturePath);
 end;
 
 initialization

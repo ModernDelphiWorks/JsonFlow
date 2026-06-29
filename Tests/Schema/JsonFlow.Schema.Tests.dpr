@@ -15,6 +15,7 @@ uses
   JsonFlow.TestsSchemaReader in 'IO\JsonFlow.TestsSchemaReader.pas',
   JsonFlow.TestsCustomFormats in 'Validators\JsonFlow.TestsCustomFormats.pas',
   JsonFlow.TestsSchemaValidator in 'Validators\JsonFlow.TestsSchemaValidator.pas',
+  JsonFlow.TestsSchemaSuiteHelper in 'Validators\JsonFlow.TestsSchemaSuiteHelper.pas',
   JsonFlow.TestsSchemaValidatorNew in 'Validators\JsonFlow.TestsSchemaValidatorNew.pas',
   JsonFlow.TestsSchemaObjectKeywordsDeep in 'Validators\ObjectKeywords\JsonFlow.TestsSchemaObjectKeywordsDeep.pas',
   JsonFlow.TestsSchemaObjectKeywordsLimits in 'Validators\ObjectKeywords\JsonFlow.TestsSchemaObjectKeywordsLimits.pas',

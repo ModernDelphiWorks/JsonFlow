@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -27,9 +27,11 @@ type
   TContainsRule = class(TBaseValidationRule)
   private
     FSchema: IJSONElement;
+    FMinContains: Integer;
+    FMaxContains: Integer;
     function ValidateItemAgainstSchema(const AItem: IJSONElement; const ASchema: IJSONElement; const AContext: TValidationContext): TValidationResult;
   public
-    constructor Create(const ASchema: IJSONElement);
+    constructor Create(const ASchema: IJSONElement; AMinContains: Integer = 1; AMaxContains: Integer = -1);
     function Validate(const AValue: IJSONElement; const AContext: TObject): TValidationResult; override;
   end;
 
@@ -40,10 +42,12 @@ uses
 
 { TContainsRule }
 
-constructor TContainsRule.Create(const ASchema: IJSONElement);
+constructor TContainsRule.Create(const ASchema: IJSONElement; AMinContains: Integer; AMaxContains: Integer);
 begin
   inherited Create('contains');
   FSchema := ASchema;
+  FMinContains := AMinContains;
+  FMaxContains := AMaxContains;
 end;
 
 function TContainsRule.ValidateItemAgainstSchema(const AItem: IJSONElement; const ASchema: IJSONElement; const AContext: TValidationContext): TValidationResult;
@@ -88,7 +92,8 @@ var
   LError: TValidationError;
   LItem: IJSONElement;
   LItemResult: TValidationResult;
-  LHasValidItem: Boolean;
+  LValidItemCount: Integer;
+  LIsValid: Boolean;
   I: Integer;
 begin
   LValidationContext := TValidationContext(AContext);
@@ -107,11 +112,10 @@ begin
     Exit;
   end;
   
-  LHasValidItem := False;
+  LValidItemCount := 0;
   
   LValidationContext.PushSchemaSegment('contains');
   try
-    // Verificar se pelo menos um item é válido contra o esquema
     for I := 0 to LArray.Count - 1 do
     begin
       LItem := LArray.GetItem(I);
@@ -122,8 +126,7 @@ begin
 
         if LItemResult.IsValid then
         begin
-          LHasValidItem := True;
-          Break; // Encontrou um item válido, pode parar
+          Inc(LValidItemCount);
         end;
       finally
         LValidationContext.PopArrayIndex;
@@ -133,18 +136,36 @@ begin
     LValidationContext.PopSchemaSegment;
   end;
   
-  if LHasValidItem then
+  LIsValid := LValidItemCount >= FMinContains;
+  if LIsValid and (FMaxContains >= 0) then
+    LIsValid := LValidItemCount <= FMaxContains;
+    
+  if LIsValid then
     Result := TValidationResult.Success(LValidationContext.GetFullPath)
   else
   begin
-    LError := CreateValidationError(
-      LValidationContext.GetFullPath,
-      'Array does not contain any item that matches the schema',
-      'no matching items',
-      'at least one matching item',
-      'contains',
-      LValidationContext.GetFullSchemaPath + '/contains'
-    );
+    if LValidItemCount < FMinContains then
+    begin
+      LError := CreateValidationError(
+        LValidationContext.GetFullPath,
+        Format('Array contains %d matching items, but at least %d were expected', [LValidItemCount, FMinContains]),
+        IntToStr(LValidItemCount),
+        'at least ' + IntToStr(FMinContains) + ' matching items',
+        'minContains',
+        LValidationContext.GetFullSchemaPath + '/minContains'
+      );
+    end
+    else
+    begin
+      LError := CreateValidationError(
+        LValidationContext.GetFullPath,
+        Format('Array contains %d matching items, but at most %d were expected', [LValidItemCount, FMaxContains]),
+        IntToStr(LValidItemCount),
+        'at most ' + IntToStr(FMaxContains) + ' matching items',
+        'maxContains',
+        LValidationContext.GetFullSchemaPath + '/maxContains'
+      );
+    end;
     Result := TValidationResult.Failure(LValidationContext.GetFullPath, [LError]);
   end;
 end;

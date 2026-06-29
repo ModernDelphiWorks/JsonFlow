@@ -1084,7 +1084,16 @@ begin
       if LSchemaObj.ContainsKey('contains') then
       begin
         var LContainsSchema := LSchemaObj.GetValue('contains');
-        LRules.Add(TContainsRule.Create(LContainsSchema));
+        var LMinContains := 1;
+        var LMaxContains := -1;
+        
+        if LSchemaObj.ContainsKey('minContains') then
+          LMinContains := (LSchemaObj.GetValue('minContains') as IJSONValue).AsInteger;
+          
+        if LSchemaObj.ContainsKey('maxContains') then
+          LMaxContains := (LSchemaObj.GetValue('maxContains') as IJSONValue).AsInteger;
+          
+        LRules.Add(TContainsRule.Create(LContainsSchema, LMinContains, LMaxContains));
       end;
 
       if LSchemaObj.ContainsKey('patternProperties') then

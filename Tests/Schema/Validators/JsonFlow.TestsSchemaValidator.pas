@@ -94,6 +94,8 @@ type
     procedure TestValidate_ContentEncoding;
     [Test]
     procedure TestValidate_ContentMediaType;
+    [Test]
+    procedure TestValidate_MinMaxContains;
   end;
 
 implementation
@@ -635,6 +637,31 @@ begin
   
   LJson := '"SGVsbG8="'; // 'Hello' em base64 (não é JSON)
   Assert.IsFalse(FReader.Validate(LJson), 'Invalid base64 JSON string (not JSON structure)');
+end;
+
+procedure TJSONSchemaValidatorTests.TestValidate_MinMaxContains;
+var
+  LSchema, LJson: string;
+begin
+  // minContains = 2
+  LSchema := '{"type": "array", "contains": {"type": "number"}, "minContains": 2}';
+  FReader.LoadFromString(LSchema);
+  
+  LJson := '[1, 2, "three"]';
+  Assert.IsTrue(FReader.Validate(LJson), 'Valid minContains (2 matching numbers)');
+  
+  LJson := '[1, "two", "three"]';
+  Assert.IsFalse(FReader.Validate(LJson), 'Invalid minContains (only 1 matching number)');
+
+  // maxContains = 2
+  LSchema := '{"type": "array", "contains": {"type": "number"}, "maxContains": 2}';
+  FReader.LoadFromString(LSchema);
+  
+  LJson := '[1, 2, "three"]';
+  Assert.IsTrue(FReader.Validate(LJson), 'Valid maxContains (2 matching numbers)');
+  
+  LJson := '[1, 2, 3]';
+  Assert.IsFalse(FReader.Validate(LJson), 'Invalid maxContains (3 matching numbers)');
 end;
 
 initialization

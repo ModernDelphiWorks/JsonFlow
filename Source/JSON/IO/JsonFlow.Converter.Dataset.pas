@@ -28,6 +28,7 @@ uses
   JsonFlow.Interfaces,
   JsonFlow.Composer,
   JsonFlow.Objects,
+  JsonFlow.Reader,
   JsonFlow.Arrays,
   JsonFlow.Value;
 
@@ -430,15 +431,19 @@ var
   LArray: IJSONArray;
 begin
   FComposer.Clear;
-  
-  if FOptions.IncludeMetadata then
-    AddMetadata(FComposer, ADataset);
-    
-  if FOptions.IncludeFieldDefs then
-    AddFieldDefs(FComposer, ADataset);
-    
-  LArray := DatasetToJSONArray(ADataset);
-  FComposer.Add('data', LArray);
+  FComposer.BeginObject;
+  try
+    if FOptions.IncludeMetadata then
+      AddMetadata(FComposer, ADataset);
+      
+    if FOptions.IncludeFieldDefs then
+      AddFieldDefs(FComposer, ADataset);
+      
+    LArray := DatasetToJSONArray(ADataset);
+    FComposer.Add('data', LArray);
+  finally
+    FComposer.EndObject;
+  end;
   
   Result := FComposer.AsJSON(True);
 end;
@@ -504,28 +509,24 @@ end;
 
 procedure TJSONDatasetConverter.JSONToDataset(const AJSON: string; ADataset: TDataset; const AClearFirst: Boolean);
 var
-  LComposer: TJSONComposer;
-  LNavigator: TJSONNavigator;
+  LReader: IJSONReader;
+  LElement: IJSONElement;
+  LObject: IJSONObject;
   LArray: IJSONArray;
 begin
-  LComposer := TJSONComposer.Create;
-  try
-    LComposer.LoadJSON(AJSON);
-//    LNavigator := LComposer.Navigator;
-
-//    if LNavigator.HasPath('data') then
-//    begin
-//      if Supports(LNavigator.GetValue('data'), IJSONArray, LArray) then
-//        JSONArrayToDataset(LArray, ADataset, AClearFirst);
-//    end
-//    else
-//    begin
-//      // JSON é um array direto
-//      if Supports(LComposer.GetJSONElement, IJSONArray, LArray) then
-//        JSONArrayToDataset(LArray, ADataset, AClearFirst);
-//    end;
-  finally
-    LComposer.Free;
+  LReader := TJSONReader.Create;
+  LElement := LReader.Read(AJSON);
+  if not Assigned(LElement) then
+    Exit;
+    
+  if Supports(LElement, IJSONObject, LObject) then
+  begin
+    if LObject.ContainsKey('data') and Supports(LObject.GetValue('data'), IJSONArray, LArray) then
+      JSONArrayToDataset(LArray, ADataset, AClearFirst);
+  end
+  else if Supports(LElement, IJSONArray, LArray) then
+  begin
+    JSONArrayToDataset(LArray, ADataset, AClearFirst);
   end;
 end;
 

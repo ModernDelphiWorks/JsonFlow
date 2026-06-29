@@ -18,6 +18,24 @@
 
 ---
 
+## 📊 Performance & Benchmarks
+
+Below is a comparison demonstrating JsonFlow's superiority against native Delphi JSON and other frameworks (e.g., Neon):
+Abaixo está o gráfico comparativo demonstrando a superioridade do JsonFlow frente ao JSON nativo do Delphi e a outras soluções (como o Neon):
+
+<p align="center">
+  <img src="assets/benchmarks.png" alt="JsonFlow Performance Comparison Chart" width="800"/>
+</p>
+
+Additionally, here is a visual demo of our VCL benchmark suite executing intensive JSON operations:
+Adicionalmente, aqui está a captura da nossa aplicação de benchmark VCL:
+
+<p align="center">
+  <img src="assets/jsonflow.png" alt="VCL Benchmark Demo Interface" width="800"/>
+</p>
+
+---
+
 ## 🇬🇧 English
 
 **JsonFlow** is a state-of-the-art, high-performance, and feature-rich JSON manipulation, serialization, and JSON Schema validation framework for Delphi and Lazarus. It provides an enterprise-ready toolkit that integrates high-speed object serialization, in-place dynamic JSON editing, and robust Draft 7 JSON Schema validation under a unified, elegant, and fluent API. By incorporating custom navigation caching, batch mode optimizations, and multi-threaded object pooling, JsonFlow delivers unmatched native parsing and validation speeds for intensive web applications, APIs, and microservices.
@@ -40,20 +58,6 @@
 | :--- | :--- | :---: | :---: |
 | **Delphi XE or superior** | VCL, FMX, Console (Win/Linux/macOS/iOS/Android) | ✅ Yes | ✅ Yes |
 | **Lazarus / FreePascal** | LCL, Console (Cross-platform) | ✅ Yes | ✅ Yes |
-
-### 📊 Performance & Benchmarks
-
-Below is a comparison of serialization, composition, and validation performance demonstrating JsonFlow's superiority against native Delphi JSON and other frameworks (e.g., Neon):
-
-<p align="center">
-  <img src="assets/benchmarks.png" alt="JsonFlow Performance Comparison Chart" width="800"/>
-</p>
-
-Additionally, here is a visual demo of our VCL benchmark suite executing intensive JSON operations:
-
-<p align="center">
-  <img src="assets/jsonflow.png" alt="VCL Benchmark Demo Interface" width="800"/>
-</p>
 
 ### 🐧 Cross-Platform Build — Win32 / Win64 / Linux64
 
@@ -190,20 +194,6 @@ end;
 | :--- | :--- | :---: | :---: |
 | **Delphi XE ou superior** | VCL, FMX, Console (Win/Linux/macOS/iOS/Android) | ✅ Sim | ✅ Sim |
 | **Lazarus / FreePascal** | LCL, Console (Multiplataforma) | ✅ Sim | ✅ Sim |
-
-### 📊 Performance & Benchmarks
-
-Abaixo está o gráfico comparativo de performance de serialização, composição e validação demonstrando a superioridade do JsonFlow frente ao JSON nativo do Delphi e a outros frameworks (como o Neon):
-
-<p align="center">
-  <img src="assets/benchmarks.png" alt="Gráfico Comparativo de Performance do JsonFlow" width="800"/>
-</p>
-
-Adicionalmente, aqui está a captura da nossa aplicação de benchmark VCL executando as operações intensivas de JSON:
-
-<p align="center">
-  <img src="assets/jsonflow.png" alt="Interface VCL do Benchmark do JsonFlow" width="800"/>
-</p>
 
 ### 🐧 Build Multiplataforma — Win32 / Win64 / Linux64
 

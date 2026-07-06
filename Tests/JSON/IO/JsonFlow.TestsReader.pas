@@ -1,4 +1,4 @@
-﻿unit JsonFlow.TestsReader;
+unit JsonFlow.TestsReader;
 
 interface
 
@@ -81,8 +81,8 @@ begin
       begin
         LReader.Read('95,5');
       end,
-      EInvalidOperation,
-      'Deve falhar com n�mero inv�lido'
+      EJsonFlowParseError,
+      'Deve falhar com n?mero inv?lido'
     );
   finally
     LReader.Free;
@@ -97,7 +97,7 @@ begin
   LReader := TJSONReader.Create(TFormatSettings.Create('en_US'));
   try
     LElement := LReader.Read('{"name": "Isaque"}');
-    Assert.IsNotNull(LElement, 'Objeto n�o deve ser nulo');
+    Assert.IsNotNull(LElement, 'Objeto n?o deve ser nulo');
     Assert.AreEqual('Isaque', ((LElement as IJSONObject).GetValue('name') as IJSONVALUE).AsString, 'Valor de "name" incorreto');
   finally
     LReader.Free;
@@ -112,7 +112,7 @@ end;
 //  LReader := TJSONReader.Create(TFormatSettings.Create('en_US'));
 //  try
 //    LElement := LReader.Read('["a", "b", "c"]');
-//    Assert.IsNotNull(LElement, 'Array n�o deve ser nulo');
+//    Assert.IsNotNull(LElement, 'Array n?o deve ser nulo');
 //    Assert.AreEqual(3, (LElement as IJSONArray).Count, 'Tamanho do array incorreto');
 //    Assert.AreEqual('a', ((LElement as IJSONArray)[0] as IJSONValue).AsString, 'Primeiro elemento incorreto');
 //  finally
@@ -128,7 +128,7 @@ begin
   LReader := TJSONReader.Create(TFormatSettings.Create('en_US'));
   try
     LElement := LReader.Read('"teste"');
-    Assert.IsNotNull(LElement, 'String n�o deve ser nula');
+    Assert.IsNotNull(LElement, 'String n?o deve ser nula');
     Assert.AreEqual('teste', (LElement as IJSONValue).AsString, 'Valor da string incorreto');
   finally
     LReader.Free;
@@ -143,8 +143,8 @@ begin
   LReader := TJSONReader.Create(TFormatSettings.Create('en_US'));
   try
     LElement := LReader.Read('42');
-    Assert.IsNotNull(LElement, 'N�mero n�o deve ser nulo');
-    Assert.AreEqual(Int64(42), (LElement as IJSONValue).AsInteger, 'Valor do n�mero incorreto');
+    Assert.IsNotNull(LElement, 'N?mero n?o deve ser nulo');
+    Assert.AreEqual(Int64(42), (LElement as IJSONValue).AsInteger, 'Valor do n?mero incorreto');
   finally
     LReader.Free;
   end;
@@ -158,7 +158,7 @@ begin
   LReader := TJSONReader.Create(TFormatSettings.Create('en_US'));
   try
     LElement := LReader.Read('true');
-    Assert.IsNotNull(LElement, 'Booleano n�o deve ser nulo');
+    Assert.IsNotNull(LElement, 'Booleano n?o deve ser nulo');
     Assert.IsTrue((LElement as IJSONValue).AsBoolean, 'Valor do booleano incorreto');
   finally
     LReader.Free;
@@ -173,8 +173,8 @@ begin
   LReader := TJSONReader.Create(TFormatSettings.Create('en_US'));
   try
     LElement := LReader.Read('null');
-    Assert.IsNotNull(LElement, 'Null n�o deve ser nulo');
-    Assert.IsTrue((LElement as IJSONValue).AsString = 'null', 'Valor n�o � null');
+    Assert.IsNotNull(LElement, 'Null n?o deve ser nulo');
+    Assert.IsTrue((LElement as IJSONValue).AsString = 'null', 'Valor n?o ? null');
   finally
     LReader.Free;
   end;
@@ -191,7 +191,7 @@ begin
       begin
         LReader.Read('');
       end,
-      EInvalidOperation,
+      EJsonFlowParseError,
       'Deve falhar com string vazia'
     );
   finally

@@ -34,17 +34,6 @@ uses
 
 type
   /// <summary>
-  /// Middleware para customização da serialização
-  /// </summary>
-  TJSONSerializerMiddleware = class abstract
-  public
-    function BeforeSerialize(const APropertyName: string; const AValue: TValue; var AResult: IJSONElement): Boolean; virtual; abstract;
-    function AfterSerialize(const APropertyName: string; const AValue: TValue; var AResult: IJSONElement): Boolean; virtual; abstract;
-    function BeforeDeserialize(const APropertyName: string; const AElement: IJSONElement; var AValue: TValue): Boolean; virtual; abstract;
-    function AfterDeserialize(const APropertyName: string; const AElement: IJSONElement; var AValue: TValue): Boolean; virtual; abstract;
-  end;
-
-  /// <summary>
   /// Opções avançadas de serialização
   /// </summary>
   TJSONSerializerOptions = record
@@ -104,6 +93,14 @@ type
     procedure SerializeToStream(AObject: TObject; AStream: TStream; AStoreClassName: Boolean = False);
   public
     procedure OnLog(const ALogProc: TProc<String>);
+    /// <summary>
+    /// Registro validado: o middleware DEVE implementar IGetValueMiddleware
+    /// e/ou ISetValueMiddleware — implementar só o marcador IEventMiddleware
+    /// seria silenciosamente inútil, então falha aqui, no registro.
+    /// </summary>
+    procedure AddMiddleware(const AMiddleware: IEventMiddleware);
+    // Acesso direto mantido por compatibilidade; prefira AddMiddleware,
+    // que valida o contrato na entrada.
     property Middlewares: TList<IEventMiddleware> read FMiddlewares;
     property Options: TJSONSerializerOptions read FOptions write FOptions;
   end;
@@ -471,23 +468,35 @@ var
   LSetMiddle: ISetValueMiddleware;
   LResult: Variant;
   LBreak: Boolean;
+  LConverted: Boolean;
   LIntValue: Integer;
 begin
   if not Assigned(AInstance) then
     raise EArgumentNilException.Create('Instance cannot be nil');
   if not AProperty.IsWritable then
     Exit;
-  // Middlewares
-  for LFor := 0 to FMiddlewares.Count - 1 do
+  // Middlewares — conversão LAZY: o _JSONToVariant era avaliado por
+  // middleware por propriedade (para objetos/arrays isso serializa a
+  // subárvore inteira via AsJSON); agora converte uma única vez e só quando
+  // o primeiro ISetValueMiddleware é encontrado.
+  if FMiddlewares.Count > 0 then
   begin
-    LMiddle := FMiddlewares[LFor];
-    if Supports(LMiddle, ISetValueMiddleware, LSetMiddle) then
+    LConverted := False;
+    for LFor := 0 to FMiddlewares.Count - 1 do
     begin
-      LBreak := False;
-      LResult := _JSONToVariant(AElement);
-      LSetMiddle.SetValue(AInstance, AProperty, LResult, LBreak);
-      if LBreak then
-        Exit;
+      LMiddle := FMiddlewares[LFor];
+      if Supports(LMiddle, ISetValueMiddleware, LSetMiddle) then
+      begin
+        if not LConverted then
+        begin
+          LResult := _JSONToVariant(AElement);
+          LConverted := True;
+        end;
+        LBreak := False;
+        LSetMiddle.SetValue(AInstance, AProperty, LResult, LBreak);
+        if LBreak then
+          Exit;
+      end;
     end;
   end;
 
@@ -661,6 +670,18 @@ end;
 procedure TJSONSerializer.OnLog(const ALogProc: TProc<String>);
 begin
   FLogProc := ALogProc;
+end;
+
+procedure TJSONSerializer.AddMiddleware(const AMiddleware: IEventMiddleware);
+begin
+  if not Assigned(AMiddleware) then
+    raise EArgumentNilException.Create('Middleware cannot be nil');
+  if not (Supports(AMiddleware, IGetValueMiddleware) or
+          Supports(AMiddleware, ISetValueMiddleware)) then
+    raise EArgumentException.Create(
+      'Middleware must implement IGetValueMiddleware and/or ISetValueMiddleware ' +
+      '(implementing only the IEventMiddleware marker has no effect)');
+  FMiddlewares.Add(AMiddleware);
 end;
 
 function TJSONSerializer.ToObject(const AElement: IJSONElement; AObject: TObject): Boolean;

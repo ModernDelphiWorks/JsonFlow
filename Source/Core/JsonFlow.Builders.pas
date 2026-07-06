@@ -120,12 +120,12 @@ type
   strict private
     class var FNotifyEventSetValue: TNotifyEventSetValue;
     class var FNotifyEventGetValue: TNotifyEventGetValue;
-    // Snapshot imutável: mutações (AddMiddleware/ClearMiddlewares) trocam o
-    // array inteiro sob lock; leitores iteram a referência local sem lock.
-    // Registre middlewares na inicialização — antes de haver serializações
-    // concorrentes (o TList anterior era iterado e mutado sem sincronização,
-    // corrompendo o enumerador em servidores multi-thread como o Horse).
-    class var FMiddlwareList: TArray<IEventMiddleware>;
+    // Snapshots imutáveis PRÉ-CLASSIFICADOS por contrato: mutações trocam os
+    // arrays sob lock; leitores iteram a referência local sem lock e sem
+    // Supports/QueryInterface por propriedade. Registre middlewares na
+    // inicialização — antes de haver serializações concorrentes.
+    class var FGetMiddlewares: TArray<IGetValueMiddleware>;
+    class var FSetMiddlewares: TArray<ISetValueMiddleware>;
     class var FMiddlwareLock: TObject;
   strict private
     class function _ResolveValueArrayString(const AValue: Variant): TArray<String>; inline;
@@ -298,7 +298,6 @@ var
   LObject: TObject;
   LTypeInfo: PTypeInfo;
   LBreak: Boolean;
-  LMiddleware: IEventMiddleware;
   LGetMw: IGetValueMiddleware;
 
   function L_IsBoolean: Boolean;
@@ -320,12 +319,12 @@ begin
       Exit;
   end;
 
-  // Middlewares GetValue
+  // Middlewares GetValue — lista pré-classificada no registro:
+  // sem Supports/QueryInterface por propriedade.
   LBreak := False;
-  for LMiddleware in FMiddlwareList do
+  for LGetMw in FGetMiddlewares do
   begin
-    if Supports(LMiddleware, IGetValueMiddleware, LGetMw) then
-      LGetMw.GetValue(AInstance, AProperty, Result, LBreak);
+    LGetMw.GetValue(AInstance, AProperty, Result, LBreak);
     if LBreak then
       Exit;
   end;
@@ -435,7 +434,6 @@ var
   LBreak: Boolean;
   LTypeInfo: PTypeInfo;
   LObject: TObject;
-  LMiddleware: IEventMiddleware;
   LSetMw: ISetValueMiddleware;
   LValue: Variant;
   LIntValue: Integer;
@@ -462,12 +460,12 @@ begin
       Exit;
   end;
 
-  // Middlewares SetValue
-  for LMiddleware in FMiddlwareList do
+  // Middlewares SetValue — lista pré-classificada no registro:
+  // sem Supports/QueryInterface por propriedade.
+  for LSetMw in FSetMiddlewares do
   begin
     LBreak := False;
-    if Supports(LMiddleware, ISetValueMiddleware, LSetMw) then
-      LSetMw.SetValue(AInstance, AProperty, LValue, LBreak);
+    LSetMw.SetValue(AInstance, AProperty, LValue, LBreak);
     if LBreak then
       Exit;
   end;
@@ -534,24 +532,52 @@ end;
 
 procedure TJsonBuilder.AddMiddleware(
   const AEventMiddleware: IEventMiddleware);
+var
+  LGetMw: IGetValueMiddleware;
+  LSetMw: ISetValueMiddleware;
+  LHasContract: Boolean;
 begin
+  if not Assigned(AEventMiddleware) then
+    raise EArgumentNilException.Create('Middleware cannot be nil');
+
+  // Contrato validado no REGISTRO: implementar só o marcador IEventMiddleware
+  // seria silenciosamente inútil — falha aqui, não em runtime silencioso.
+  // De quebra o Supports acontece uma única vez, e as listas ficam
+  // pré-classificadas por contrato para os hot paths.
+  LHasContract := False;
   TMonitor.Enter(FMiddlwareLock);
   try
-    FMiddlwareList := FMiddlwareList + [AEventMiddleware];
+    if Supports(AEventMiddleware, IGetValueMiddleware, LGetMw) then
+    begin
+      FGetMiddlewares := FGetMiddlewares + [LGetMw];
+      LHasContract := True;
+    end;
+    if Supports(AEventMiddleware, ISetValueMiddleware, LSetMw) then
+    begin
+      FSetMiddlewares := FSetMiddlewares + [LSetMw];
+      LHasContract := True;
+    end;
   finally
     TMonitor.Exit(FMiddlwareLock);
   end;
+
+  if not LHasContract then
+    raise EArgumentException.Create(
+      'Middleware must implement IGetValueMiddleware and/or ISetValueMiddleware ' +
+      '(implementing only the IEventMiddleware marker has no effect)');
 end;
 
 class constructor TJsonBuilder.Create;
 begin
   FMiddlwareLock := TObject.Create;
-  FMiddlwareList := nil;
+  FGetMiddlewares := nil;
+  FSetMiddlewares := nil;
 end;
 
 class destructor TJsonBuilder.Destroy;
 begin
-  FMiddlwareList := nil;
+  FGetMiddlewares := nil;
+  FSetMiddlewares := nil;
   FMiddlwareLock.Free;
 end;
 
@@ -559,7 +585,8 @@ class procedure TJsonBuilder.ClearMiddlewares;
 begin
   TMonitor.Enter(FMiddlwareLock);
   try
-    FMiddlwareList := nil;
+    FGetMiddlewares := nil;
+    FSetMiddlewares := nil;
   finally
     TMonitor.Exit(FMiddlwareLock);
   end;

@@ -168,16 +168,35 @@ type
     procedure OnProgress(const AProgress: TProc<TObject, Single>);
   end;
 
+  /// <summary>
+  /// CONTRATO DE MIDDLEWARE — marcador base. Não implemente apenas esta
+  /// interface: todo middleware DEVE implementar IGetValueMiddleware
+  /// (intercepta propriedades na SERIALIZAÇÃO) e/ou ISetValueMiddleware
+  /// (intercepta na DESERIALIZAÇÃO). O registro (TJsonFlow.AddMiddleware /
+  /// TJSONSerializer.AddMiddleware) valida e rejeita implementações sem
+  /// nenhum dos dois contratos. Implementação de referência:
+  /// TMiddlewareDateTime (JsonFlow.MiddlewareDatatime).
+  /// </summary>
   IEventMiddleware = interface
     ['{96402F5C-2C57-45AA-AD31-36900C5EA7DA}']
   end;
 
+  /// <summary>
+  /// Intercepta a leitura de cada propriedade durante a serialização.
+  /// Defina AValue e ABreak := True para substituir o valor serializado
+  /// (o pipeline para no primeiro middleware que der break).
+  /// </summary>
   IGetValueMiddleware = interface(IEventMiddleware)
     ['{C109A7D0-72BA-42F3-9596-F12556746B6E}']
     procedure GetValue(const AInstance: TObject; const AProperty: TRttiProperty;
       var AValue: Variant; var ABreak: Boolean);
   end;
 
+  /// <summary>
+  /// Intercepta a escrita de cada propriedade durante a deserialização.
+  /// Escreva na instância (AProperty.SetValue) e defina ABreak := True para
+  /// assumir a atribuição (o pipeline para no primeiro break).
+  /// </summary>
   ISetValueMiddleware = interface(IEventMiddleware)
     ['{CE2F0793-959A-4747-861E-EC111DDBF01B}']
     procedure SetValue(const AInstance: TObject; const AProperty: TRttiProperty;

@@ -32,6 +32,7 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure Add(const AValue: IJSONElement);
+    procedure Insert(const AIndex: Integer; const AValue: IJSONElement);
     function GetItem(const AIndex: Integer): IJSONElement;
     function Count: Integer;
     procedure Remove(const AIndex: Integer);
@@ -69,6 +70,15 @@ begin
   if AValue = nil then
     raise EArgumentNilException.Create('Cannot add nil element to JSONArray');
   FItems.Add(AValue);
+end;
+
+procedure TJSONArray.Insert(const AIndex: Integer; const AValue: IJSONElement);
+begin
+  if AValue = nil then
+    raise EArgumentNilException.Create('Cannot insert nil element to JSONArray');
+  if (AIndex < 0) or (AIndex > FItems.Count) then
+    raise EArgumentOutOfRangeException.CreateFmt('Index %d out of bounds [0..%d]', [AIndex, FItems.Count]);
+  FItems.Insert(AIndex, AValue);
 end;
 
 function TJSONArray.GetItem(const AIndex: Integer): IJSONElement;

@@ -90,7 +90,7 @@ type
     // Direct stream private writers
     procedure _WriteObject(AObject: TObject; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
     procedure _WriteTValue(const AValue: TValue; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
-    function _EscapeString(const AValue: string): string;
+    procedure _AppendEscapedString(const AValue: string; ABuilder: TStringBuilder);
   public
     constructor Create; overload;
     constructor Create(const AFormatSettings: TFormatSettings; const AUseISO8601DateFormat: Boolean = True); overload;
@@ -714,35 +714,44 @@ begin
   Result := True;
 end;
 
-function TJSONSerializer._EscapeString(const AValue: string): string;
+procedure TJSONSerializer._AppendEscapedString(const AValue: string; ABuilder: TStringBuilder);
 var
-  LBuilder: TStringBuilder;
   LFor: Integer;
+  LStart: Integer;
+  LLen: Integer;
   LChar: Char;
 begin
-  LBuilder := TStringBuilder.Create;
-  try
-    for LFor := 1 to Length(AValue) do
+  // Fast-path: a imensa maioria das strings não tem nada a escapar — copia
+  // trechos "limpos" em bloco direto no builder de destino, sem builder
+  // intermediário nem string temporária (antes: 1 TStringBuilder + 1 cópia
+  // por valor string serializado).
+  LLen := Length(AValue);
+  LStart := 1;
+  for LFor := 1 to LLen do
+  begin
+    LChar := AValue[LFor];
+    if (LChar = '"') or (LChar = '\') or (LChar < #32) then
     begin
-      LChar := AValue[LFor];
+      if LFor > LStart then
+        ABuilder.Append(AValue, LStart - 1, LFor - LStart);
       case LChar of
-        '"': LBuilder.Append('\"');
-        '\': LBuilder.Append('\\');
-        #8: LBuilder.Append('\b');
-        #9: LBuilder.Append('\t');
-        #10: LBuilder.Append('\n');
-        #12: LBuilder.Append('\f');
-        #13: LBuilder.Append('\r');
-        #0..#7, #11, #14..#31:
-          LBuilder.Append('\u00' + IntToHex(Ord(LChar), 2));
+        '"': ABuilder.Append('\"');
+        '\': ABuilder.Append('\\');
+        #8: ABuilder.Append('\b');
+        #9: ABuilder.Append('\t');
+        #10: ABuilder.Append('\n');
+        #12: ABuilder.Append('\f');
+        #13: ABuilder.Append('\r');
         else
-          LBuilder.Append(LChar);
+          ABuilder.Append('\u00').Append(IntToHex(Ord(LChar), 2));
       end;
+      LStart := LFor + 1;
     end;
-    Result := LBuilder.ToString;
-  finally
-    LBuilder.Free;
   end;
+  if LStart = 1 then
+    ABuilder.Append(AValue)
+  else if LStart <= LLen then
+    ABuilder.Append(AValue, LStart - 1, LLen - LStart + 1);
 end;
 
 procedure TJSONSerializer._WriteTValue(const AValue: TValue; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
@@ -781,7 +790,7 @@ begin
     tkChar, tkWChar, tkLString, tkWString, tkUString:
       begin
         ABuilder.Append('"');
-        ABuilder.Append(_EscapeString(AValue.AsString));
+        _AppendEscapedString(AValue.AsString, ABuilder);
         ABuilder.Append('"');
       end;
     tkEnumeration:
@@ -889,7 +898,9 @@ function TJSONSerializer.SerializeToString(AObject: TObject; AStoreClassName: Bo
 var
   LBuilder: TStringBuilder;
 begin
-  LBuilder := TStringBuilder.Create;
+  // Capacidade inicial evita a escada de realocações (16 chars dobrando até
+  // centenas de KB) em documentos grandes; 4KB é irrisório para os pequenos.
+  LBuilder := TStringBuilder.Create(4096);
   try
     _WriteObject(AObject, LBuilder, AStoreClassName);
     Result := LBuilder.ToString;

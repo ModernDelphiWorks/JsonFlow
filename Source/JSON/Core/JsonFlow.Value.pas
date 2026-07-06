@@ -258,11 +258,27 @@ end;
 function TJSONValueString.AsJSON(const AIdent: Boolean = False): String;
 var
   LBuilder: TStringBuilder;
-  LResult: String;
   LFor: Integer;
   LChar: Char;
+  LNeedsEscape: Boolean;
 begin
-  LBuilder := TStringBuilder.Create;
+  // Fast-path: sem nada a escapar (caso comum), monta por concatenação direta
+  // — sem TStringBuilder nem varredura de append char a char.
+  LNeedsEscape := False;
+  for LFor := 1 to Length(FValue) do
+  begin
+    LChar := FValue[LFor];
+    if (LChar = '"') or (LChar = '\') or (LChar < #32) then
+    begin
+      LNeedsEscape := True;
+      Break;
+    end;
+  end;
+
+  if not LNeedsEscape then
+    Exit('"' + FValue + '"');
+
+  LBuilder := TStringBuilder.Create(Length(FValue) + 16);
   try
     LBuilder.Append('"');
     for LFor := 1 to Length(FValue) do
@@ -283,11 +299,10 @@ begin
       end;
     end;
     LBuilder.Append('"');
-    LResult := LBuilder.ToString;
+    Result := LBuilder.ToString;
   finally
     LBuilder.Free;
   end;
-  Result := LResult;
 end;
 
 function TJSONValueString.Clone: IJSONElement;

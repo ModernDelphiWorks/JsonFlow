@@ -35,22 +35,57 @@ function DateTimeToIso8601(const AValue: TDateTime;
 var
   LDatePart: String;
   LTimePart: String;
+  LYear, LMonth, LDay: Word;
+  LHour, LMin, LSec, LMSec: Word;
+  P: PChar;
+
+  procedure _Put2(APos: Integer; AVal: Word);
+  begin
+    P[APos]     := Char(Ord('0') + (AVal div 10));
+    P[APos + 1] := Char(Ord('0') + (AVal mod 10));
+  end;
+
 begin
   Result := '';
   if AValue = 0 then
     Exit;
 
   if AUseISO8601DateFormat then
-    LDatePart := FormatDateTime('yyyy-mm-dd', AValue)
-  else
-    LDatePart := DateToStr(AValue, GJsonFlowFormatSettings);
+  begin
+    // Escrita direta dos dígitos — FormatDateTime reparseava a máscara
+    // ('yyyy-mm-dd'/'hh:nn:ss') a cada chamada, e este é o caminho quente
+    // de toda data serializada.
+    DecodeDate(AValue, LYear, LMonth, LDay);
+    if Frac(AValue) = 0 then
+    begin
+      SetLength(Result, 10);
+      P := PChar(Result);
+      _Put2(0, LYear div 100); _Put2(2, LYear mod 100);
+      P[4] := '-'; _Put2(5, LMonth);
+      P[7] := '-'; _Put2(8, LDay);
+    end
+    else
+    begin
+      DecodeTime(AValue, LHour, LMin, LSec, LMSec);
+      SetLength(Result, 19);
+      P := PChar(Result);
+      _Put2(0, LYear div 100); _Put2(2, LYear mod 100);
+      P[4] := '-'; _Put2(5, LMonth);
+      P[7] := '-'; _Put2(8, LDay);
+      P[10] := 'T'; _Put2(11, LHour);
+      P[13] := ':'; _Put2(14, LMin);
+      P[16] := ':'; _Put2(17, LSec);
+    end;
+    Exit;
+  end;
 
+  LDatePart := DateToStr(AValue, GJsonFlowFormatSettings);
   if Frac(AValue) = 0 then
-    Result := ifThen(AUseISO8601DateFormat, LDatePart, DateToStr(AValue, GJsonFlowFormatSettings))
+    Result := LDatePart
   else
   begin
     LTimePart := FormatDateTime('hh:nn:ss', AValue);
-    Result := ifThen(AUseISO8601DateFormat, LDatePart + 'T' + LTimePart, LDatePart + ' ' + LTimePart);
+    Result := LDatePart + ' ' + LTimePart;
   end;
 end;
 

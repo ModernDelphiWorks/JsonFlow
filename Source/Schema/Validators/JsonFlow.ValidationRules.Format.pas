@@ -96,7 +96,10 @@ begin
     Exit;
   end;
 
-  if not LValue.IsString then
+  // IsDate conta como string: o Reader converte strings ISO-8601 em
+  // TJSONValueDateTime, mas para o JSON Schema o tipo léxico segue sendo
+  // string (AsString devolve a forma ISO para o validador de formato).
+  if not (LValue.IsString or LValue.IsDate) then
   begin
     LError := CreateValidationError(
       LValidationContext.GetFullPath,

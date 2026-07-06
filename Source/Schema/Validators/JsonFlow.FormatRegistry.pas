@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -34,6 +34,7 @@ interface
 uses
   System.SysUtils,
   System.Classes,
+  System.RegularExpressions,
   System.Generics.Collections;
 
 type
@@ -80,59 +81,59 @@ type
     class procedure ClearRegistry;
   end;
 
+  // Base para validadores de regex fixa: compila o padrão UMA vez no
+  // constructor (os validadores são singletons de vida longa no registry;
+  // antes cada DoValidate criava e compilava um TRegEx novo por valor).
+  TRegexFormatValidator = class(TBaseFormatValidator)
+  private
+    FRegex: TRegEx;
+  protected
+    function DoValidate(const AValue: string): Boolean; override;
+  public
+    constructor Create(const AFormatName, APattern: string);
+  end;
+
   // Validadores built-in usando o novo sistema
-  TEmailFormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TEmailFormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
 
-  TUriFormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TUriFormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
 
-  TDateFormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TDateFormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
 
-  TTimeFormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TTimeFormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
 
   TDateTimeFormatValidator = class(TBaseFormatValidator)
+  private
+    FRegex: TRegEx;
   protected
     function DoValidate(const AValue: string): Boolean; override;
   public
     constructor Create;
   end;
 
-  TUuidFormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TUuidFormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
 
-  TIpv4FormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TIpv4FormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
 
-  TIpv6FormatValidator = class(TBaseFormatValidator)
-  protected
-    function DoValidate(const AValue: string): Boolean; override;
+  TIpv6FormatValidator = class(TRegexFormatValidator)
   public
     constructor Create;
   end;
@@ -141,9 +142,6 @@ type
 procedure RegisterBuiltInFormatValidators;
 
 implementation
-
-uses
-  System.RegularExpressions;
 
 { TBaseFormatValidator }
 
@@ -262,66 +260,48 @@ begin
   end;
 end;
 
+{ TRegexFormatValidator }
+
+constructor TRegexFormatValidator.Create(const AFormatName, APattern: string);
+begin
+  inherited Create(AFormatName);
+  FRegex := TRegEx.Create(APattern, [roCompiled]);
+  if FRegex.IsMatch('') then; // força a compilação lazy fora do hot path // força a compilação lazy aqui, não no hot path
+end;
+
+function TRegexFormatValidator.DoValidate(const AValue: string): Boolean;
+begin
+  Result := FRegex.IsMatch(AValue);
+end;
+
 { TEmailFormatValidator }
 
 constructor TEmailFormatValidator.Create;
 begin
-  inherited Create('email');
-end;
-
-function TEmailFormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
-  LRegex := TRegEx.Create('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('email', '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
 end;
 
 { TUriFormatValidator }
 
 constructor TUriFormatValidator.Create;
 begin
-  inherited Create('uri');
-end;
-
-function TUriFormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
-  LRegex := TRegEx.Create('^https?://[^\s/$.?#].[^\s]*$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('uri', '^https?://[^\s/$.?#].[^\s]*$');
 end;
 
 { TDateFormatValidator }
 
 constructor TDateFormatValidator.Create;
 begin
-  inherited Create('date');
-end;
-
-function TDateFormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
   // Formato YYYY-MM-DD
-  LRegex := TRegEx.Create('^\d{4}-\d{2}-\d{2}$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('date', '^\d{4}-\d{2}-\d{2}$');
 end;
 
 { TTimeFormatValidator }
 
 constructor TTimeFormatValidator.Create;
 begin
-  inherited Create('time');
-end;
-
-function TTimeFormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
   // Formato HH:MM:SS ou HH:MM:SS.sss
-  LRegex := TRegEx.Create('^\d{2}:\d{2}:\d{2}(\.\d{3})?$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('time', '^\d{2}:\d{2}:\d{2}(\.\d{3})?$');
 end;
 
 { TDateTimeFormatValidator }
@@ -329,17 +309,17 @@ end;
 constructor TDateTimeFormatValidator.Create;
 begin
   inherited Create('date-time');
+  // Formato ISO 8601: YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DDTHH:MM:SSZ
+  FRegex := TRegEx.Create('^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?$', [roCompiled]);
+  if FRegex.IsMatch('') then; // força a compilação lazy fora do hot path
 end;
 
 function TDateTimeFormatValidator.DoValidate(const AValue: string): Boolean;
 var
-  LRegex: TRegEx;
   LYear, LMonth, LDay, LHour, LMin, LSec: Integer;
   LDateTimeStr: string;
 begin
-  // Primeiro verifica o formato ISO 8601: YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DDTHH:MM:SSZ
-  LRegex := TRegEx.Create('^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?$');
-  if not LRegex.IsMatch(AValue) then
+  if not FRegex.IsMatch(AValue) then
     Exit(False);
   
   // Agora valida se é uma data/hora real válida
@@ -388,45 +368,21 @@ end;
 
 constructor TUuidFormatValidator.Create;
 begin
-  inherited Create('uuid');
-end;
-
-function TUuidFormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
-  LRegex := TRegEx.Create('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('uuid', '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
 end;
 
 { TIpv4FormatValidator }
 
 constructor TIpv4FormatValidator.Create;
 begin
-  inherited Create('ipv4');
-end;
-
-function TIpv4FormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
-  LRegex := TRegEx.Create('^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('ipv4', '^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$');
 end;
 
 { TIpv6FormatValidator }
 
 constructor TIpv6FormatValidator.Create;
 begin
-  inherited Create('ipv6');
-end;
-
-function TIpv6FormatValidator.DoValidate(const AValue: string): Boolean;
-var
-  LRegex: TRegEx;
-begin
-  LRegex := TRegEx.Create('^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$');
-  Result := LRegex.IsMatch(AValue);
+  inherited Create('ipv6', '^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$');
 end;
 
 { Registro dos validadores built-in }

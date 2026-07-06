@@ -829,12 +829,9 @@ var
 begin
   LCacheKey := GetCacheKey(ASchema);
 
-  // Verificar cache
-  if FCompiledSchemas.ContainsKey(LCacheKey) then
-  begin
-    Result := FCompiledSchemas[LCacheKey];
+  // Verificar cache (TryGetValue único — antes ContainsKey + indexador)
+  if FCompiledSchemas.TryGetValue(LCacheKey, Result) then
     Exit;
-  end;
 
   // Armazenar o schema raiz para resolu??o de refer?ncias (apenas se n?o estiver definido)
   if not Assigned(FRootSchema) then
@@ -1206,19 +1203,15 @@ begin
 end;
 
 function TSchemaCompiler.GetCacheKey(const ASchema: IJSONElement): string;
-var
-  LSchemaObj: IJSONObject;
-  LIdValue: IJSONValue;
-  LContextKey: string;
 begin
-  LContextKey := _GetCurrentBaseURI;
-  if Supports(ASchema, IJSONObject, LSchemaObj) then
-  begin
-    if LSchemaObj.ContainsKey('$id') and Supports(LSchemaObj.GetValue('$id'), IJSONValue, LIdValue) then
-      LContextKey := LContextKey + '|' + LIdValue.AsString;
-  end;
-  // Gerar hash do schema JSON para usar como chave de cache context-aware
-  Result := IntToStr(THashBobJenkins.GetHashValue(LContextKey + '|' + ASchema.AsJSON));
+  // Chave por IDENTIDADE do nó do schema (ponteiro da interface) + Base URI.
+  // A versão anterior serializava o subschema INTEIRO (AsJSON) e o hasheava a
+  // cada visita de nó do documento — dominava o tempo de validação em
+  // documentos grandes. Os subschemas são nós compartilhados da mesma árvore
+  // (referência estável enquanto o schema estiver carregado), e o cache é
+  // limpo junto com a árvore (ClearCache/ParseSchema), então a identidade é
+  // segura. O $id não precisa entrar na chave: mesmo nó -> mesmo $id.
+  Result := _GetCurrentBaseURI + '|' + IntToHex(NativeUInt(Pointer(ASchema)), SizeOf(Pointer) * 2);
 end;
 
 procedure TSchemaCompiler.ClearCache;
@@ -1531,6 +1524,13 @@ end;
 procedure TJSONSchemaValidator.ParseSchema(const ASchema: IJSONElement);
 begin
   AddLog('ParseSchema called');
+
+  // Schema novo (outra instância) => cache de compilação limpo. Necessário
+  // para a chave por identidade (endereço reutilizado não pode acertar cache
+  // velho) e corrige também o FRootSchema/navigator presos ao schema anterior
+  // quando o validator era reaproveitado.
+  if FSchema <> ASchema then
+    FCompiler.ClearCache;
 
   FSchema := ASchema;
 

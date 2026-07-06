@@ -1,4 +1,4 @@
-﻿{
+{
   ------------------------------------------------------------------------------
   JsonFlow
   High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
@@ -34,12 +34,15 @@ type
     FAdditionalSchema: IJSONElement;
     FDefinedProperties: TArray<string>;
     FPatternProperties: TArray<string>;
+    FDefinedSet: TDictionary<string, Byte>;
+    FCompiledPatterns: TArray<TRegEx>;
     function IsDefinedProperty(const APropertyName: string): Boolean;
   public
     constructor Create(AAllowAdditional: Boolean;
       const AAdditionalSchema: IJSONElement = nil;
       const ADefinedProperties: TArray<string> = nil;
       const APatternProperties: TArray<string> = nil);
+    destructor Destroy; override;
     function Validate(const AValue: IJSONElement; const AContext: TObject): TValidationResult; override;
   end;
 
@@ -51,34 +54,51 @@ constructor TAdditionalPropertiesRule.Create(AAllowAdditional: Boolean;
   const AAdditionalSchema: IJSONElement;
   const ADefinedProperties: TArray<string>;
   const APatternProperties: TArray<string>);
+var
+  LProp, LPattern: string;
+  LRegex: TRegEx;
 begin
   inherited Create('additionalProperties');
   FAllowAdditional := AAllowAdditional;
   FAdditionalSchema := AAdditionalSchema;
   FDefinedProperties := ADefinedProperties;
   FPatternProperties := APatternProperties;
+
+  // Preparado UMA vez no compile: hash set das propriedades definidas (antes
+  // busca linear por propriedade validada) e regexes pré-compiladas (antes
+  // TRegEx.IsMatch estático compilava a cada chamada).
+  FDefinedSet := TDictionary<string, Byte>.Create;
+  for LProp in ADefinedProperties do
+    FDefinedSet.AddOrSetValue(LProp, 0);
+
+  for LPattern in APatternProperties do
+  begin
+    try
+      LRegex := TRegEx.Create(LPattern, [roCompiled]);
+      if LRegex.IsMatch('') then; // força a compilação lazy fora do hot path
+      FCompiledPatterns := FCompiledPatterns + [LRegex];
+    except
+      // padrão inválido: ignora (comportamento anterior: Exit(False) na 1ª falha)
+    end;
+  end;
+end;
+
+destructor TAdditionalPropertiesRule.Destroy;
+begin
+  FDefinedSet.Free;
+  inherited;
 end;
 
 function TAdditionalPropertiesRule.IsDefinedProperty(const APropertyName: string): Boolean;
 var
-  LDefinedProp: string;
-  LPattern: string;
+  LFor: Integer;
 begin
-  for LDefinedProp in FDefinedProperties do
-  begin
-    if APropertyName = LDefinedProp then
-      Exit(True);
-  end;
+  if FDefinedSet.ContainsKey(APropertyName) then
+    Exit(True);
 
-  for LPattern in FPatternProperties do
-  begin
-    try
-      if TRegEx.IsMatch(APropertyName, LPattern) then
-        Exit(True);
-    except
-      Exit(False);
-    end;
-  end;
+  for LFor := 0 to High(FCompiledPatterns) do
+    if FCompiledPatterns[LFor].IsMatch(APropertyName) then
+      Exit(True);
 
   Result := False;
 end;

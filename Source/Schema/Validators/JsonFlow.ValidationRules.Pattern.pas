@@ -26,6 +26,8 @@ type
   TPatternRule = class(TBaseValidationRule)
   private
     FPattern: string;
+    FRegex: TRegEx;
+    FRegexReady: Boolean;
   public
     constructor Create(const APattern: string);
     function Validate(const AValue: IJSONElement; const AContext: TObject): TValidationResult; override;
@@ -39,6 +41,16 @@ constructor TPatternRule.Create(const APattern: string);
 begin
   inherited Create('pattern');
   FPattern := APattern;
+  // Compila a regex UMA vez — antes era TRegEx.Create por string validada
+  // (compilação PCRE no hot path). Pattern inválido cai no caminho de erro
+  // original dentro do Validate.
+  try
+    FRegex := TRegEx.Create(APattern, [roCompiled]);
+    if FRegex.IsMatch('') then; // força a compilação lazy fora do hot path // força a compilação lazy aqui, não no hot path
+    FRegexReady := True;
+  except
+    FRegexReady := False;
+  end;
 end;
 
 function TPatternRule.Validate(const AValue: IJSONElement; const AContext: TObject): TValidationResult;
@@ -46,7 +58,6 @@ var
   LValue: IJSONValue;
   LError: TValidationError;
   LValidationContext: TValidationContext;
-  LRegex: TRegEx;
 begin
   LValidationContext := TValidationContext(AContext);
   
@@ -79,8 +90,9 @@ begin
   end;
 
   try
-    LRegex := TRegEx.Create(FPattern);
-    if LRegex.IsMatch(LValue.AsString) then
+    if not FRegexReady then
+      raise Exception.CreateFmt('Pattern "%s" failed to compile', [FPattern]);
+    if FRegex.IsMatch(LValue.AsString) then
       Result := TValidationResult.Success(LValidationContext.GetFullPath)
     else
     begin

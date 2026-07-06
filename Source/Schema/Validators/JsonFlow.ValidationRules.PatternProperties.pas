@@ -27,6 +27,7 @@ type
   TPatternPropertiesRule = class(TBaseValidationRule)
   private
     FPatternSchemas: TDictionary<string, IJSONElement>;
+    FCompiledPatterns: TDictionary<string, TRegEx>;
     function ValidatePropertySchema(const AValue: IJSONElement; const ASchema: IJSONElement; const AContext: TValidationContext): TValidationResult;
   public
     constructor Create(const APatternSchemas: TDictionary<string, IJSONElement>);
@@ -42,13 +43,31 @@ uses
 { TPatternPropertiesRule }
 
 constructor TPatternPropertiesRule.Create(const APatternSchemas: TDictionary<string, IJSONElement>);
+var
+  LPattern: string;
+  LRegex: TRegEx;
 begin
   inherited Create('patternProperties');
   FPatternSchemas := APatternSchemas;
+  // Compila cada padrão UMA vez — antes era TRegEx.Create dentro do loop
+  // propriedade × padrão a cada objeto validado. Padrão inválido fica de
+  // fora e é reportado no Validate (mesmo comportamento do try/except antigo).
+  FCompiledPatterns := TDictionary<string, TRegEx>.Create;
+  for LPattern in APatternSchemas.Keys do
+  begin
+    try
+      LRegex := TRegEx.Create(LPattern, [roCompiled]);
+      if LRegex.IsMatch('') then; // força a compilação lazy fora do hot path
+      FCompiledPatterns.Add(LPattern, LRegex);
+    except
+      // padrão inválido: sem entrada no dicionário
+    end;
+  end;
 end;
 
 destructor TPatternPropertiesRule.Destroy;
 begin
+  FCompiledPatterns.Free;
   FPatternSchemas.Free;
   inherited;
 end;
@@ -137,7 +156,10 @@ begin
         for LPattern in FPatternSchemas.Keys do
         begin
           try
-            LRegex := TRegEx.Create(LPattern);
+            // Regex pré-compilada no constructor; padrão inválido não entra
+            // no dicionário e cai no caminho de erro abaixo.
+            if not FCompiledPatterns.TryGetValue(LPattern, LRegex) then
+              raise Exception.CreateFmt('Pattern "%s" failed to compile', [LPattern]);
             if LRegex.IsMatch(LPropertyName) then
             begin
               LPatternSchema := FPatternSchemas[LPattern];

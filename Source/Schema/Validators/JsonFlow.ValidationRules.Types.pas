@@ -60,6 +60,11 @@ begin
     LValue := AValue as IJSONValue;
     if LValue.IsString then
       LActualType := 'string'
+    else if LValue.IsDate then
+      // O Reader detecta strings ISO-8601 e cria TJSONValueDateTime; para o
+      // JSON Schema o tipo continua sendo "string" (sem isso, qualquer data
+      // num documento reprovava type:string como "unknown").
+      LActualType := 'string'
     else if LValue.IsInteger then
       LActualType := 'integer'
     else if LValue.IsFloat then

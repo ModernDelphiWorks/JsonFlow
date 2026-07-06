@@ -131,6 +131,7 @@ type
   IJSONArray = interface(IJSONElement)
     ['{39099A2A-817C-4A28-8CF6-33FA1B9993E4}']
     procedure Add(const AValue: IJSONElement);
+    procedure Insert(const AIndex: Integer; const AValue: IJSONElement);
     function GetItem(const AIndex: Integer): IJSONElement;
     function Count: Integer;
     procedure Remove(const AIndex: Integer);

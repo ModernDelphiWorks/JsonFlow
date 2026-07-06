@@ -36,8 +36,9 @@ type
   private
     function _FindElement(const APath: String): IJSONElement;
     function _FindParentAndKey(const APath: String; out AKey: String): IJSONElement;
-    function _CloneElement(const AElement: IJSONElement): IJSONElement;
     function _ExtractArrayIndex(const APart: String; out AIndex: Integer): Boolean;
+    function _VariantToElement(const AValue: Variant): IJSONElement;
+    function _GetNavigator: TJSONNavigator;
     procedure _UpdateContext(const AKey: String);
     procedure _ValidateContext(const AMethod: String);
     function _GetCurrentPath: String;
@@ -63,6 +64,10 @@ type
     FPerformanceInfo: TPerformanceInfo;
     FOperationStartTime: TDateTime;
     FOperationCount: Integer;
+    // Navigator reutilizado entre operações por path (invalidado quando o
+    // root muda) — antes cada SetValue/AddToArray/RemoveKey alocava um novo.
+    FPathNavigator: TJSONNavigator;
+    FPathNavigatorRoot: IJSONElement;
     procedure _Pop;
     procedure _Push(const AElement: IJSONElement; const AName: String);
   public
@@ -180,6 +185,7 @@ destructor TJSONComposer.Destroy;
 begin
   Clear;
   //
+  FPathNavigator.Free;
   FNameStack.Free;
   FStack.Free;
   FContextStack.Free;
@@ -187,6 +193,35 @@ begin
   FValidationErrors.Free;
   FSuggestionCache.Free;
   inherited;
+end;
+
+function TJSONComposer._GetNavigator: TJSONNavigator;
+begin
+  if (FPathNavigator = nil) or (FPathNavigatorRoot <> FRoot) then
+  begin
+    FreeAndNil(FPathNavigator);
+    FPathNavigator := TJSONNavigator.Create(FRoot);
+    FPathNavigatorRoot := FRoot;
+  end;
+  Result := FPathNavigator;
+end;
+
+function TJSONComposer._VariantToElement(const AValue: Variant): IJSONElement;
+begin
+  case VarType(AValue) and varTypeMask of
+    varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64:
+      Result := TJSONValueInteger.Create(AValue);
+    varSingle, varDouble, varCurrency:
+      Result := TJSONValueFloat.Create(AValue);
+    varBoolean:
+      Result := TJSONValueBoolean.Create(AValue);
+    varDate:
+      Result := TJSONValueDateTime.Create(VarToStr(AValue), True);
+    varEmpty, varNull:
+      Result := TJSONValueNull.Create;
+  else
+    Result := TJSONValueString.Create(VarToStr(AValue));
+  end;
 end;
 
 procedure TJSONComposer._Push(const AElement: IJSONElement; const AName: String);
@@ -251,18 +286,12 @@ begin
 end;
 
 function TJSONComposer._GetCurrentPath: String;
-var
-  LPaths: TArray<String>;
-  LPath: String;
 begin
+  // ToArray uma única vez — a versão anterior materializava o stack inteiro
+  // A CADA iteração do loop (O(d²) alocações para profundidade d).
   Result := '';
   if FContextStack.Count > 0 then
-  begin
-    SetLength(LPaths, FContextStack.Count);
-    for var I := 0 to FContextStack.Count - 1 do
-      LPaths[I] := FContextStack.ToArray[I];
-    Result := String.Join('.', LPaths);
-  end;
+    Result := String.Join('.', FContextStack.ToArray);
 end;
 
 function TJSONComposer._BuildContextInfo: TContextInfo;
@@ -345,70 +374,70 @@ begin
 end;
 
 // FASE 4: Performance methods
+// Instrumentação condicionada ao FDebugMode: cada operação fluente pagava
+// 4 chamadas a Now (consulta de hora do SO) + aritmética de datas mesmo sem
+// ninguém ler as métricas — dominava o custo de um simples FPairs.Add.
 procedure TJSONComposer._UpdatePerformanceMetrics;
 begin
+  if not FDebugMode then
+    Exit;
   FPerformanceInfo.LastModified := Now;
   FPerformanceInfo.OperationCount := FOperationCount;
   // Estimativa simples de uso de memória
-  FPerformanceInfo.MemoryUsage := FStack.Count * SizeOf(IJSONElement) + 
+  FPerformanceInfo.MemoryUsage := FStack.Count * SizeOf(IJSONElement) +
                                   FNameStack.Count * SizeOf(String);
 end;
 
 procedure TJSONComposer._StartOperation;
 begin
-  FOperationStartTime := Now;
+  Inc(FOperationCount);
+  if FDebugMode then
+    FOperationStartTime := Now;
 end;
 
 procedure TJSONComposer._EndOperation;
 begin
-  Inc(FOperationCount);
+  if not FDebugMode then
+    Exit;
   FPerformanceInfo.BuildTime := TTimeSpan.FromMilliseconds(
     MilliSecondsBetween(Now, FOperationStartTime));
   _UpdatePerformanceMetrics;
 end;
 
 function TJSONComposer._FindElement(const APath: String): IJSONElement;
-var
-  LNavigator: TJSONNavigator;
 begin
   if not Assigned(FRoot) then
     raise EInvalidOperation.Create('No JSON loaded');
 
-  LNavigator := TJSONNavigator.Create(FRoot);
-  try
-    Result := LNavigator.GetValue(APath);
-    if not Assigned(Result) then
-      raise EInvalidOperation.Create('Path not found: ' + APath);
-  finally
-    LNavigator.Free;
-  end;
+  Result := _GetNavigator.GetValue(APath);
+  if not Assigned(Result) then
+    raise EInvalidOperation.Create('Path not found: ' + APath);
 end;
 
 function TJSONComposer._FindParentAndKey(const APath: String; out AKey: String): IJSONElement;
 var
-  LNavigator: TJSONNavigator;
-  LParts: TArray<String>;
+  LDot: Integer;
   LParentPath: String;
 begin
   if not Assigned(FRoot) then
     raise EInvalidOperation.Create('No JSON loaded');
 
-  LParts := APath.Split(['.']);
-  AKey := LParts[Length(LParts) - 1];
-  LParentPath := Copy(APath, 1, Length(APath) - Length(AKey) - 1);
+  // LastDelimiter em vez de Split: só o último segmento interessa aqui
+  // (o Split alocava um TArray<String> com todos os segmentos por operação).
+  LDot := LastDelimiter('.', APath);
+  AKey := Copy(APath, LDot + 1, MaxInt);
+  if LDot > 0 then
+    LParentPath := Copy(APath, 1, LDot - 1)
+  else
+    LParentPath := '';
 
-  LNavigator := TJSONNavigator.Create(FRoot);
-  try
-    if LParentPath = '' then
-      Result := FRoot
-    else
-    begin
-      Result := LNavigator.GetValue(LParentPath);
-      if not Assigned(Result) then
-        raise EInvalidOperation.Create('Parent path not found: ' + LParentPath);
-    end;
-  finally
-    LNavigator.Free;
+  if LParentPath = '' then
+    Result := FRoot
+  else
+  begin
+    Result := _GetNavigator.GetValue(LParentPath);
+    if not Assigned(Result) then
+      raise EInvalidOperation.Create('Parent path not found: ' + LParentPath);
   end;
 end;
 
@@ -425,57 +454,6 @@ begin
     LIndexStr := Copy(APart, LStart + 1, LEnd - LStart - 1);
     Result := TryStrToInt(LIndexStr, AIndex) and (AIndex >= 0);
   end;
-end;
-
-function TJSONComposer._CloneElement(const AElement: IJSONElement): IJSONElement;
-var
-  LObject: IJSONObject;
-  LArray: IJSONArray;
-  LValue: IJSONValue;
-  LPairs: TArray<IJSONPair>;
-  LItems: TArray<IJSONElement>;
-  LNewObj: TJSONObject;
-  LNewArr: TJSONArray;
-  LFor: Integer;
-begin
-  if not Assigned(AElement) then
-    Exit(nil);
-
-  if Supports(AElement, IJSONObject, LObject) then
-  begin
-    LNewObj := TJSONObject.Create;
-    LPairs := LObject.Pairs;
-    for LFor := 0 to Length(LPairs) - 1 do
-      LNewObj.Add(LPairs[LFor].Key, _CloneElement(LPairs[LFor].Value));
-    Result := LNewObj;
-  end
-  else if Supports(AElement, IJSONArray, LArray) then
-  begin
-    LNewArr := TJSONArray.Create;
-    LItems := LArray.Items;
-    for LFor := 0 to Length(LItems) - 1 do
-      LNewArr.Add(_CloneElement(LItems[LFor]));
-    Result := LNewArr;
-  end
-  else if Supports(AElement, IJSONValue, LValue) then
-  begin
-    if LValue is TJSONValueString then
-      Result := TJSONValueString.Create(LValue.AsString)
-    else if LValue is TJSONValueInteger then
-      Result := TJSONValueInteger.Create(LValue.AsInteger)
-    else if LValue is TJSONValueFloat then
-      Result := TJSONValueFloat.Create(LValue.AsFloat)
-    else if LValue is TJSONValueBoolean then
-      Result := TJSONValueBoolean.Create(LValue.AsBoolean)
-    else if LValue is TJSONValueDateTime then
-      Result := TJSONValueDateTime.Create(LValue.AsString, True)
-    else if LValue is TJSONValueNull then
-      Result := TJSONValueNull.Create
-    else
-      raise EInvalidOperation.Create('Unknown JSON value type');
-  end
-  else
-    raise EInvalidOperation.Create('Unsupported JSON element type');
 end;
 
 function TJSONComposer.BeginObject(const AName: String): IJSONComposer;
@@ -594,7 +572,7 @@ begin
   if Supports(FCurrent, IJSONObject, LObject) then
   begin
     case VarType(AValue) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LObject.Add(AName, TJSONValueInteger.Create(AValue));
+      varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LObject.Add(AName, TJSONValueInteger.Create(AValue));
       varSingle, varDouble, varCurrency: LObject.Add(AName, TJSONValueFloat.Create(AValue));
       varBoolean: LObject.Add(AName, TJSONValueBoolean.Create(AValue));
       varDate: LObject.Add(AName, TJSONValueDateTime.Create(VarToStr(AValue), True));
@@ -606,7 +584,7 @@ begin
   else if Supports(FCurrent, IJSONArray, LArray) then
   begin
     case VarType(AValue) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LArray.Add(TJSONValueInteger.Create(AValue));
+      varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LArray.Add(TJSONValueInteger.Create(AValue));
       varSingle, varDouble, varCurrency: LArray.Add(TJSONValueFloat.Create(AValue));
       varBoolean: LArray.Add(TJSONValueBoolean.Create(AValue));
       varDate: LArray.Add(TJSONValueDateTime.Create(VarToStr(AValue), True));
@@ -757,7 +735,7 @@ begin
   for LFor := 0 to Length(AValues) - 1 do
   begin
     case VarType(AValues[LFor]) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LArray.Add(TJSONValueInteger.Create(AValues[LFor]));
+      varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LArray.Add(TJSONValueInteger.Create(AValues[LFor]));
       varSingle, varDouble, varCurrency: LArray.Add(TJSONValueFloat.Create(AValues[LFor]));
       varBoolean: LArray.Add(TJSONValueBoolean.Create(AValues[LFor]));
       varDate: LArray.Add(TJSONValueDateTime.Create(VarToStr(AValues[LFor]), True));
@@ -820,17 +798,16 @@ end;
 function TJSONComposer.AddToArray(const APath: String; const AValue: Variant): IJSONComposer;
 var
   LArray: IJSONArray;
-  LParts: TArray<String>;
   LLastPart: String;
   LIndex: Integer;
-  LItems: TArray<IJSONElement>;
-  LNewArray: IJSONArray;
-  LFor: Integer;
+  LDot: Integer;
   LArrayPath: String;
   LElement: IJSONElement;
 begin
-  LParts := APath.Split(['.']);
-  LLastPart := LParts[High(LParts)];
+  // Só o último segmento interessa — LastDelimiter no lugar do Split que
+  // alocava um TArray<String> completo por operação.
+  LDot := LastDelimiter('.', APath);
+  LLastPart := Copy(APath, LDot + 1, MaxInt);
   if _ExtractArrayIndex(LLastPart, LIndex) then
   begin
     LArrayPath := Copy(APath, 1, Length(APath) - (Length(LLastPart) - Pos('[', LLastPart) + 1));
@@ -842,37 +819,10 @@ begin
       raise EInvalidOperation.Create('Path does not point to an array: ' + LArrayPath);
     if (LIndex < 0) or (LIndex > LArray.Count) then
       raise EInvalidOperation.Create('Index out of bounds: ' + IntToStr(LIndex));
-    LItems := LArray.Items;
-    LNewArray := TJSONArray.Create;
-    for LFor := 0 to Length(LItems) - 1 do
-    begin
-      if LFor = LIndex then
-      begin
-        case VarType(AValue) and varTypeMask of
-          varInteger, varShortInt, varByte, varWord, varLongWord: LNewArray.Add(TJSONValueInteger.Create(AValue));
-          varSingle, varDouble, varCurrency: LNewArray.Add(TJSONValueFloat.Create(AValue));
-          varBoolean: LNewArray.Add(TJSONValueBoolean.Create(AValue));
-          varDate: LNewArray.Add(TJSONValueDateTime.Create(VarToStr(AValue), True));
-          varEmpty, varNull: LNewArray.Add(TJSONValueNull.Create);
-          else LNewArray.Add(TJSONValueString.Create(VarToStr(AValue)));
-        end;
-      end;
-      LNewArray.Add(LItems[LFor]);
-    end;
-    if LIndex = LArray.Count then
-    begin
-      case VarType(AValue) and varTypeMask of
-        varInteger, varShortInt, varByte, varWord, varLongWord: LNewArray.Add(TJSONValueInteger.Create(AValue));
-        varSingle, varDouble, varCurrency: LNewArray.Add(TJSONValueFloat.Create(AValue));
-        varBoolean: LNewArray.Add(TJSONValueBoolean.Create(AValue));
-        varDate: LNewArray.Add(TJSONValueDateTime.Create(VarToStr(AValue), True));
-        varEmpty, varNull: LNewArray.Add(TJSONValueNull.Create);
-        else LNewArray.Add(TJSONValueString.Create(VarToStr(AValue)));
-      end;
-    end;
-    LArray.Clear;
-    for LFor := 0 to LNewArray.Count - 1 do
-      LArray.Add(LNewArray.Value(LFor));
+    // Insert direto — a versão anterior copiava Items, montava um array
+    // temporário, dava Clear e re-adicionava tudo (~3 passadas e ~3(n+1)
+    // operações interlocked de refcount para inserir UM elemento).
+    LArray.Insert(LIndex, _VariantToElement(AValue));
   end
   else
   begin
@@ -881,14 +831,7 @@ begin
       raise EInvalidOperation.Create('Path not found: ' + APath);
     if not Supports(LElement, IJSONArray, LArray) then
       raise EInvalidOperation.Create('Path does not point to an array: ' + APath);
-    case VarType(AValue) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LArray.Add(TJSONValueInteger.Create(AValue));
-      varSingle, varDouble, varCurrency: LArray.Add(TJSONValueFloat.Create(AValue));
-      varBoolean: LArray.Add(TJSONValueBoolean.Create(AValue));
-      varDate: LArray.Add(TJSONValueDateTime.Create(VarToStr(AValue), True));
-      varEmpty, varNull: LArray.Add(TJSONValueNull.Create);
-      else LArray.Add(TJSONValueString.Create(VarToStr(AValue)));
-    end;
+    LArray.Add(_VariantToElement(AValue));
   end;
   Result := Self;
 end;
@@ -917,7 +860,7 @@ begin
   for LFor := 0 to Length(AValues) - 1 do
   begin
     case VarType(AValues[LFor]) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LNewArray.Add(TJSONValueInteger.Create(AValues[LFor]));
+      varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LNewArray.Add(TJSONValueInteger.Create(AValues[LFor]));
       varSingle, varDouble, varCurrency: LNewArray.Add(TJSONValueFloat.Create(AValues[LFor]));
       varBoolean: LNewArray.Add(TJSONValueBoolean.Create(AValues[LFor]));
       varDate: LNewArray.Add(TJSONValueDateTime.Create(VarToStr(AValues[LFor]), True));
@@ -941,7 +884,7 @@ begin
   for LFor := 0 to Length(AValues) - 1 do
   begin
     case VarType(AValues[LFor]) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LArray.Add(TJSONValueInteger.Create(AValues[LFor]));
+      varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LArray.Add(TJSONValueInteger.Create(AValues[LFor]));
       varSingle, varDouble, varCurrency: LArray.Add(TJSONValueFloat.Create(AValues[LFor]));
       varBoolean: LArray.Add(TJSONValueBoolean.Create(AValues[LFor]));
       varDate: LArray.Add(TJSONValueDateTime.Create(VarToStr(AValues[LFor]), True));
@@ -987,7 +930,7 @@ begin
   for LFor := 0 to Length(AValues) - 1 do
   begin
     case VarType(AValues[LFor]) and varTypeMask of
-      varInteger, varShortInt, varByte, varWord, varLongWord: LNewArray.Add(TJSONValueInteger.Create(AValues[LFor]));
+      varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LNewArray.Add(TJSONValueInteger.Create(AValues[LFor]));
       varSingle, varDouble, varCurrency: LNewArray.Add(TJSONValueFloat.Create(AValues[LFor]));
       varBoolean: LNewArray.Add(TJSONValueBoolean.Create(AValues[LFor]));
       varDate: LNewArray.Add(TJSONValueDateTime.Create(VarToStr(AValues[LFor]), True));
@@ -1058,7 +1001,7 @@ begin
       raise EInvalidOperation.Create('Path does not point to a value: ' + APath);
   end;
   case VarType(AValue) and varTypeMask of
-    varInteger, varShortInt, varByte, varWord, varLongWord: LValue.AsInteger := AValue;
+    varInteger, varShortInt, varByte, varWord, varLongWord, varInt64, varUInt64: LValue.AsInteger := AValue;
     varSingle, varDouble, varCurrency: LValue.AsFloat := AValue;
     varBoolean: LValue.AsBoolean := AValue;
     varDate: LValue.AsString := VarToStr(AValue); // Assume ISO 8601
@@ -1087,7 +1030,10 @@ var
   LNewComposer: TJSONComposer;
 begin
   LNewComposer := TJSONComposer.Create;
-  LNewComposer.FRoot := _CloneElement(FRoot);
+  // Clone nativo do DOM — a versão local (_CloneElement) refazia o dispatch
+  // com Supports+is por nó e clonava datas via string->parse.
+  if Assigned(FRoot) then
+    LNewComposer.FRoot := FRoot.Clone;
   LNewComposer.FCurrent := LNewComposer.FRoot;
   Result := LNewComposer;
 end;
@@ -1318,11 +1264,13 @@ var
   LCacheKey: String;
 begin
   LCacheKey := AContext + '_' + FCurrentContext;
-  
-  if not FSuggestionCache.ContainsKey(LCacheKey) then
-    FSuggestionCache.Add(LCacheKey, _GetContextSuggestions);
-    
-  Result := FSuggestionCache[LCacheKey];
+
+  // TryGetValue único — antes: ContainsKey + Add + indexador (3 lookups)
+  if not FSuggestionCache.TryGetValue(LCacheKey, Result) then
+  begin
+    Result := _GetContextSuggestions;
+    FSuggestionCache.Add(LCacheKey, Result);
+  end;
 end;
 
 function TJSONComposer.SuggestKeys: TArray<String>;
@@ -1405,7 +1353,10 @@ end;
 // FASE 4: Performance e recursos avançados
 function TJSONComposer.GetPerformanceMetrics: TPerformanceInfo;
 begin
-  _UpdatePerformanceMetrics;
+  // OperationCount continua sempre atualizado; os campos de tempo/memória só
+  // são coletados com EnableDebugMode(True) — a coleta incondicional custava
+  // 4x Now por operação fluente.
+  FPerformanceInfo.OperationCount := FOperationCount;
   Result := FPerformanceInfo;
 end;
 

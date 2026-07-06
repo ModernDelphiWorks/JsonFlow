@@ -670,6 +670,7 @@ var
   LJsonObj: IJSONObject;
   LProp: TRttiProperty;
   LKey: String;
+  LElement: IJSONElement;
   LConverter: IJSONPropertyConverter;
 begin
   if not Assigned(AObject) then
@@ -694,19 +695,20 @@ begin
     else
       LKey := LProp.Name;
 
-    if LJsonObj.ContainsKey(LKey) then
+    // TryGetValue único — antes eram dois lookups (ContainsKey + GetValue)
+    if LJsonObj.TryGetValue(LKey, LElement) then
     begin
       if FOptions.ProcessAttributes then
       begin
         LConverter := TJSONAttributeHelper.GetCustomConverter(LProp);
         if Assigned(LConverter) then
         begin
-          LProp.SetValue(AObject, LConverter.FromJSON(LJsonObj.GetValue(LKey), LProp));
+          LProp.SetValue(AObject, LConverter.FromJSON(LElement, LProp));
           Continue;
         end;
       end;
 
-      _JSONToProperty(LProp, AObject, LJsonObj.GetValue(LKey));
+      _JSONToProperty(LProp, AObject, LElement);
     end;
   end;
   Result := True;

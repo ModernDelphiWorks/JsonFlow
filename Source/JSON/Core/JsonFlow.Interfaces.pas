@@ -117,6 +117,7 @@ type
     ['{E34C8F5A-CB24-4773-A7BB-97EC2FF27E5C}']
     function Add(const AKey: String; const AValue: IJSONElement): IJSONPair;
     function GetValue(const AKey: String): IJSONElement;
+    function TryGetValue(const AKey: String; out AValue: IJSONElement): Boolean;
     function ContainsKey(const AKey: String): Boolean;
     function Count: Integer;
     procedure Remove(const AKey: String);

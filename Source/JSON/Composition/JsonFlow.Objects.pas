@@ -20,20 +20,28 @@ interface
 uses
   System.SysUtils,
   System.Classes,
+  System.Generics.Defaults,
   System.Generics.Collections,
   JsonFlow.Interfaces,
   JsonFlow.Pair;
 
 type
   TJSONObject = class(TInterfacedObject, IJSONElement, IJSONObject)
+  private const
+    // Abaixo disso a varredura linear é mais barata que manter o dicionário
+    // (objetos JSON típicos têm poucas chaves e não pagam alocação extra).
+    INDEX_THRESHOLD = 8;
   private
     FPairs: TList<IJSONPair>;
+    FIndex: TDictionary<String, Integer>;
+    procedure _BuildIndex;
     function _FindPair(const AKey: String; out AIndex: Integer): IJSONPair;
   public
     constructor Create;
     destructor Destroy; override;
     function Add(const AKey: String; const AValue: IJSONElement): IJSONPair;
     function GetValue(const AKey: String): IJSONElement;
+    function TryGetValue(const AKey: String; out AValue: IJSONElement): Boolean;
     function ContainsKey(const AKey: String): Boolean;
     function Count: Integer;
     procedure Remove(const AKey: String);
@@ -50,6 +58,42 @@ type
 
 implementation
 
+type
+  // Igualdade idêntica à do SameText (folding apenas de a-z, como CompareText)
+  // para o índice reproduzir exatamente a semântica do lookup linear anterior.
+  TSameTextEqualityComparer = class(TEqualityComparer<String>)
+  public
+    function Equals(const Left, Right: String): Boolean; override;
+    function GetHashCode(const Value: String): Integer; override;
+  end;
+
+var
+  GSameTextComparer: IEqualityComparer<String>;
+
+function TSameTextEqualityComparer.Equals(const Left, Right: String): Boolean;
+begin
+  Result := SameText(Left, Right);
+end;
+
+function TSameTextEqualityComparer.GetHashCode(const Value: String): Integer;
+var
+  LFor: Integer;
+  LChar: Word;
+  LHash: Cardinal;
+begin
+  // FNV-1a com o mesmo folding a-z -> A-Z do CompareText/SameText,
+  // garantindo hash consistente com Equals.
+  LHash := 2166136261;
+  for LFor := 1 to Length(Value) do
+  begin
+    LChar := Word(Value[LFor]);
+    if (LChar >= Word('a')) and (LChar <= Word('z')) then
+      Dec(LChar, 32);
+    LHash := (LHash xor LChar) * 16777619;
+  end;
+  Result := Integer(LHash);
+end;
+
 { TJSONObject }
 
 constructor TJSONObject.Create;
@@ -60,9 +104,19 @@ end;
 
 destructor TJSONObject.Destroy;
 begin
+  FIndex.Free;
   FPairs.Clear;
   FPairs.Free;
   inherited;
+end;
+
+procedure TJSONObject._BuildIndex;
+var
+  LFor: Integer;
+begin
+  FIndex := TDictionary<String, Integer>.Create(FPairs.Count * 2, GSameTextComparer);
+  for LFor := 0 to FPairs.Count - 1 do
+    FIndex.AddOrSetValue(FPairs[LFor].Key, LFor);
 end;
 
 function TJSONObject._FindPair(const AKey: String; out AIndex: Integer): IJSONPair;
@@ -71,6 +125,15 @@ var
 begin
   Result := nil;
   AIndex := -1;
+  if Assigned(FIndex) then
+  begin
+    if FIndex.TryGetValue(AKey, LFor) then
+    begin
+      AIndex := LFor;
+      Result := FPairs[LFor];
+    end;
+    Exit;
+  end;
   for LFor := 0 to FPairs.Count - 1 do
     if SameText(FPairs[LFor].Key, AKey) then
     begin
@@ -96,6 +159,10 @@ begin
     LPair := TJSONPair.Create(AKey, AValue);
     FPairs.Add(LPair);
     Result := LPair;
+    if Assigned(FIndex) then
+      FIndex.AddOrSetValue(AKey, FPairs.Count - 1)
+    else if FPairs.Count > INDEX_THRESHOLD then
+      _BuildIndex;
   end;
 end;
 
@@ -109,6 +176,19 @@ begin
     Result := LPair.Value
   else
     Result := nil;
+end;
+
+function TJSONObject.TryGetValue(const AKey: String; out AValue: IJSONElement): Boolean;
+var
+  LPair: IJSONPair;
+  LIndex: Integer;
+begin
+  LPair := _FindPair(AKey, LIndex);
+  Result := Assigned(LPair);
+  if Result then
+    AValue := LPair.Value
+  else
+    AValue := nil;
 end;
 
 function TJSONObject.ContainsKey(const AKey: String): Boolean;
@@ -128,11 +208,21 @@ var
   LIndex: Integer;
 begin
   if _FindPair(AKey, LIndex) <> nil then
+  begin
     FPairs.Delete(LIndex);
+    // Delete desloca os índices seguintes; reconstrução é O(k) e Remove é raro.
+    if Assigned(FIndex) then
+    begin
+      FreeAndNil(FIndex);
+      if FPairs.Count > INDEX_THRESHOLD then
+        _BuildIndex;
+    end;
+  end;
 end;
 
 procedure TJSONObject.Clear;
 begin
+  FreeAndNil(FIndex);
   FPairs.Clear;
 end;
 
@@ -243,5 +333,8 @@ begin
     LClone.Add(FPairs[LFor].Key, FPairs[LFor].Value.Clone);
   Result := LClone;
 end;
+
+initialization
+  GSameTextComparer := TSameTextEqualityComparer.Create;
 
 end.

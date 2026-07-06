@@ -46,7 +46,7 @@ Abaixo está o gráfico comparativo demonstrando a superioridade de performance 
   <img src="assets/benchmarks.png" alt="Gráfico Comparativo de Performance do JsonFlow" width="800"/>
 </p>
 
-O JsonFlow também foi comparado com a popular biblioteca [X-SuperObject](https://github.com/onryldz/x-superobject) — cenário Complex Class (1K a 5K objetos `TCustomer` com `Address` e `Contacts` aninhados). Mediana de 3 execuções (Release, Win32) na escala de 5K: **deserialização ~5× mais rápida** (59ms vs 304ms) e **serialização ~12× mais rápida** (24ms vs 286ms):
+O JsonFlow também foi comparado com a popular biblioteca [X-SuperObject](https://github.com/onryldz/x-superobject) — cenário Complex Class (1K a 5K objetos `TCustomer` com `Address` e `Contacts` aninhados). Na escala de 5K (Release, Win32): **deserialização ~6× mais rápida** (50ms vs 316ms) e **serialização ~15× mais rápida** (19ms vs 282ms):
 
 <p align="center">
   <img src="assets/benchmarks-xsuperobject.png" alt="Gráfico Comparativo JsonFlow vs X-SuperObject" width="800"/>

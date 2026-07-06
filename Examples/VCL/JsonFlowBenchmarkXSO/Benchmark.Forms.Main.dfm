@@ -7,13 +7,12 @@ object frmBenchmark: TfrmBenchmark
   Color = clWhite
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
-  Font.Height = -11
+  Font.Height = -12
   Font.Name = 'Segoe UI'
-  Font.Size = 9
   Font.Style = []
   Position = poScreenCenter
   OnCreate = FormCreate
-  TextHeight = 14
+  TextHeight = 15
   object pnlTop: TPanel
     Left = 0
     Top = 0
@@ -21,10 +20,22 @@ object frmBenchmark: TfrmBenchmark
     Height = 52
     Align = alTop
     BevelOuter = bvNone
-    Color = $00F5F5F5
+    Color = clWhitesmoke
     ParentBackground = False
-    ParentColor = False
     TabOrder = 0
+    object lblStatus: TLabel
+      Left = 572
+      Top = 19
+      Width = 171
+      Height = 13
+      Caption = 'Click "Start Benchmarks" to begin'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clGray
+      Font.Height = -11
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+    end
     object rdSimple: TRadioButton
       Left = 10
       Top = 17
@@ -66,19 +77,6 @@ object frmBenchmark: TfrmBenchmark
       TabOrder = 3
       OnClick = btnStartClick
     end
-    object lblStatus: TLabel
-      Left = 572
-      Top = 19
-      Width = 300
-      Height = 14
-      Caption = 'Click "Start Benchmarks" to begin'
-      Font.Charset = DEFAULT_CHARSET
-      Font.Color = clGray
-      Font.Height = -11
-      Font.Name = 'Segoe UI'
-      Font.Style = []
-      ParentFont = False
-    end
   end
   object pnlBottom: TPanel
     Left = 0
@@ -106,14 +104,13 @@ object frmBenchmark: TfrmBenchmark
       Align = alClient
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
-      Font.Height = -11
+      Font.Height = -12
       Font.Name = 'Courier New'
-      Font.Size = 9
       Font.Style = []
       ParentFont = False
       ReadOnly = True
       ScrollBars = ssVertical
-      TabOrder = 1
+      TabOrder = 0
     end
   end
   object pnlCharts: TPanel
@@ -124,7 +121,6 @@ object frmBenchmark: TfrmBenchmark
     Align = alClient
     BevelOuter = bvNone
     Color = clWhite
-    ParentColor = False
     TabOrder = 2
     object pnlChartLeft: TPanel
       Left = 0

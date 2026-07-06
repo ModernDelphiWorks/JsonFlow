@@ -1,4 +1,4 @@
-unit Benchmark.Forms.Main;
+﻿unit Benchmark.Forms.Main;
 
 // JsonFlow vs X-SuperObject Benchmark - Neon-identical methodology
 // Escala Simple  (TUser)     : 10K, 20K, 30K, 40K, 50K

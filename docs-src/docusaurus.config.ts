@@ -3,7 +3,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'JsonFlow',
-  tagline: 'High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation for Delphi and Lazarus',
+  tagline: 'High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation for Delphi',
   favicon: 'img/favicon.svg',
 
   // Build output directory is set via CLI (`npm run build` → `docusaurus build --out-dir ../docs`)

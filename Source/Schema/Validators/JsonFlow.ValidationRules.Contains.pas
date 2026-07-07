@@ -1,7 +1,7 @@
 {
   ------------------------------------------------------------------------------
   JsonFlow
-  High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus.
+  High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi.
 
   SPDX-License-Identifier: MIT
   Copyright (c) 2025-2026 Isaque Pinheiro

@@ -2,10 +2,9 @@
   <img src="assets/logo.png" alt="JsonFlow Logo" width="380"/>
 </p>
 
-# JsonFlow — High-performance JSON serialization, dynamic manipulation, and Draft-7 Schema validation for Delphi/Lazarus
+# JsonFlow — High-performance JSON serialization, dynamic manipulation, and Draft-7 Schema validation for Delphi
 
 [![Delphi XE+](https://img.shields.io/badge/Delphi-XE%20or%20superior-blue.svg)]()
-[![Lazarus Compatible](https://img.shields.io/badge/Lazarus-Compatible-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CRA-ready](https://img.shields.io/badge/CRA--ready-SBOM%20%2B%20Security%20policy-success)](https://www.pubpascal.dev/packages/jsonflow)
 
@@ -21,7 +20,7 @@
 
 ---
 
-**JsonFlow** is a state-of-the-art, high-performance, and feature-rich JSON manipulation, serialization, and JSON Schema validation framework for Delphi and Lazarus. It provides an enterprise-ready toolkit that integrates high-speed object serialization, in-place dynamic JSON editing, and robust Draft 7 JSON Schema validation under a unified, elegant, and fluent API. Every hot path — parsing, RTTI marshalling, path-based editing, and schema validation — has been profiled and optimized against public, reproducible benchmarks, delivering native speeds for intensive web applications, APIs, and microservices.
+**JsonFlow** is a state-of-the-art, high-performance, and feature-rich JSON manipulation, serialization, and JSON Schema validation framework for Delphi. It provides an enterprise-ready toolkit that integrates high-speed object serialization, in-place dynamic JSON editing, and robust Draft 7 JSON Schema validation under a unified, elegant, and fluent API. Every hot path — parsing, RTTI marshalling, path-based editing, and schema validation — has been profiled and optimized against public, reproducible benchmarks, delivering native speeds for intensive web applications, APIs, and microservices.
 
 ### 🚀 Key Features
 
@@ -39,7 +38,6 @@
 | Environment / IDE | Platform / Compiler | Draft 7 Validator | Custom Middlewares |
 | :--- | :--- | :---: | :---: |
 | **Delphi XE or superior** | VCL, FMX, Console (Win/Linux/macOS/iOS/Android) | ✅ Yes | ✅ Yes |
-| **Lazarus / FreePascal** | LCL, Console (Cross-platform) | ✅ Yes | ✅ Yes |
 
 ### 📊 Performance & Benchmarks
 

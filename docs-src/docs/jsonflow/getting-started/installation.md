@@ -63,6 +63,6 @@ Source\Addons\Validation\
 
 ## Requirements
 
-- Delphi XE or later **or** Lazarus / FreePascal (compatible)
+- Delphi XE or later
 - No external runtime dependencies for core functionality
 - `Horse` required only for `Horse.JsonFlow` middleware

@@ -49,7 +49,6 @@ Both serialization (read/write) and schema validation support a middleware pipel
 | Environment | Platform | Draft 7 | Pooling |
 |---|---|:---:|:---:|
 | Delphi XE or later | VCL, FMX, Console (Win/Linux/macOS/iOS/Android) | Yes | Yes |
-| Lazarus / FreePascal | LCL, Console (cross-platform) | Yes | Yes |
 
 :::note Linux64 status
 Win32/Win64 is verified in production (2026-06-20). Linux64 consumer apps compile and run. A standalone full-framework Linux build has one tracked follow-up: `IEventMiddleware` is declared in both `JsonFlow.Types` and `JsonFlow.Interfaces` — choosing the canonical declaration resolves the ambiguity (this is not a platform issue).

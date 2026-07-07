@@ -16,7 +16,7 @@ Welcome to the **JsonFlow** technical documentation portal. Content is derived f
         <h3>JsonFlow</h3>
       </div>
       <div className="card__body">
-        <p>High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi and Lazarus. Provides object↔JSON mapping via RTTI, a fluent composer for in-place editing, and a full Draft 7 validator with detailed error paths. Performance add-ons: navigation cache (2.5×), batch mode (3.4×), and thread-safe object pooling (3×).</p>
+        <p>High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi. Provides object↔JSON mapping via RTTI, a fluent composer for in-place editing, and a full Draft 7 validator with detailed error paths. Performance add-ons: navigation cache (2.5×), batch mode (3.4×), and thread-safe object pooling (3×).</p>
       </div>
       <div className="card__footer">
         <a className="button button--primary" href="./jsonflow/">Open documentation →</a>
@@ -30,5 +30,4 @@ Welcome to the **JsonFlow** technical documentation portal. Content is derived f
 This portal matches the published source as of **2026-06-20**.
 
 - Win32/Win64: verified in production.
-- Lazarus/FreePascal: compatible (all platforms).
 - Draft 7 JSON Schema validation: full keyword coverage.

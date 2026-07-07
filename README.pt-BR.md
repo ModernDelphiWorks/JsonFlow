@@ -2,10 +2,9 @@
   <img src="assets/logo.png" alt="JsonFlow Logo" width="380"/>
 </p>
 
-# JsonFlow — Serialização de JSON de alta performance, manipulação dinâmica e validação de Schema Draft-7 para Delphi/Lazarus
+# JsonFlow — Serialização de JSON de alta performance, manipulação dinâmica e validação de Schema Draft-7 para Delphi
 
 [![Delphi XE+](https://img.shields.io/badge/Delphi-XE%20ou%20superior-blue.svg)]()
-[![Lazarus Compatible](https://img.shields.io/badge/Lazarus-Compatível-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CRA-ready](https://img.shields.io/badge/CRA--ready-SBOM%20%2B%20Security%20policy-success)](https://www.pubpascal.dev/packages/jsonflow)
 
@@ -17,7 +16,7 @@
 
 ---
 
-**JsonFlow** é um framework moderno, de alta performance e rico em recursos para manipulação, serialização e validação de JSON Schema Draft 7 em Delphi e Lazarus. Ele fornece um toolkit robusto e corporativo que integra perfeitamente serialização ultra-rápida de objetos, escrita e leitura dinâmica in-place e validação estruturada. Todos os hot paths — parse, marshalling RTTI, edição por path e validação de schema — foram auditados e otimizados contra benchmarks públicos e reproduzíveis, entregando velocidade nativa para servidores, microsserviços e APIs construídas em Object Pascal.
+**JsonFlow** é um framework moderno, de alta performance e rico em recursos para manipulação, serialização e validação de JSON Schema Draft 7 em Delphi. Ele fornece um toolkit robusto e corporativo que integra perfeitamente serialização ultra-rápida de objetos, escrita e leitura dinâmica in-place e validação estruturada. Todos os hot paths — parse, marshalling RTTI, edição por path e validação de schema — foram auditados e otimizados contra benchmarks públicos e reproduzíveis, entregando velocidade nativa para servidores, microsserviços e APIs construídas em Object Pascal.
 
 ### 🚀 Recursos Principais
 
@@ -35,7 +34,6 @@
 | Ambiente / IDE | Plataforma / Compilador | Validador Draft 7 | Middlewares Customizados |
 | :--- | :--- | :---: | :---: |
 | **Delphi XE ou superior** | VCL, FMX, Console (Win/Linux/macOS/iOS/Android) | ✅ Sim | ✅ Sim |
-| **Lazarus / FreePascal** | LCL, Console (Multiplataforma) | ✅ Sim | ✅ Sim |
 
 ### 📊 Performance & Benchmarks
 

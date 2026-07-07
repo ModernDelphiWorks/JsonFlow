@@ -55,10 +55,7 @@ Source\Addons\Validation\
 | `JsonFlow.Serializer.Attributes` | Serialization control attributes |
 | `JsonFlow.Composer` | `TJSONComposer` in-place editor |
 | `JsonFlow.Navigator` | `TJSONNavigator` path helper |
-| `JsonFlow.Composer.Enhanced` | `TJSONComposerEnhanced` (cache + batch) |
-| `JsonFlow.Composer.Pool` | `TJSONComposerPool` / `TPooledJSONComposer` |
 | `JsonFlow.SchemaValidator` | `TSchemaValidator` Draft 7 engine |
-| `JsonFlow.AsyncValidator` | `TAsyncValidator` async queue |
 | `Horse.JsonFlow` | Horse web-framework middleware |
 
 ## Requirements

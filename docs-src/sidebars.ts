@@ -40,8 +40,6 @@ const sidebars: SidebarsConfig = {
             'jsonflow/guides/schema-validation',
             'jsonflow/guides/serializer-attributes',
             'jsonflow/guides/middleware-pipeline',
-            'jsonflow/guides/async-validation',
-            'jsonflow/guides/performance-enhancements',
             'jsonflow/guides/horse-middleware',
           ],
         },

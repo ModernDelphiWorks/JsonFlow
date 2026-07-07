@@ -158,7 +158,7 @@ end;
 
 ## Composer interface
 
-`IJSONComposer` is the full fluent interface for `TJSONComposer` and `TJSONComposerEnhanced`. See the [API reference](./api) for the complete member list.
+`IJSONComposer` is the full fluent interface for `TJSONComposer`. See the [API reference](./api) for the complete member list.
 
 ## Validation types
 

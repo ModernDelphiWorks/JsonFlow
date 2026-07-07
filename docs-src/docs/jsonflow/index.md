@@ -20,7 +20,7 @@ JsonFlow provides an enterprise-ready toolkit that integrates:
 - **In-place dynamic JSON editing** — load any JSON string and traverse or mutate it using dot-notation path strings (`user.address[0].zip`).
 - **Full Draft 7 JSON Schema validation** — validate JSON structures against a schema with detailed local error paths (`Path` and `SchemaPath`).
 
-Performance add-ons deliver up to **3.4× faster** bulk operations through navigation caching, batch processing, and thread-safe object pooling.
+Every hot path was profiled and optimized in the July 2026 audit (reproducible benchmarks): up to **26× faster** than native Delphi `TJSON`, up to **15× faster** than X-SuperObject, **3.4× faster** schema validation, and **33× faster** path-based editing.
 
 ## Key features at a glance
 
@@ -33,9 +33,7 @@ Performance add-ons deliver up to **3.4× faster** bulk operations through navig
 | In-place composer | `TJSONComposer` / `IJSONComposer` |
 | Navigation helper | `TJSONNavigator` |
 | Draft 7 validator | `TSchemaValidator` / `IJSONSchemaValidator` |
-| Async validation | `TAsyncValidator` |
-| Object pooling | `TJSONComposerPool` / `TPooledJSONComposer` |
-| Performance add-ons | `TJSONComposerEnhanced` |
+| Custom middlewares | `IGetValueMiddleware` / `ISetValueMiddleware` |
 | Horse middleware | `HorseJsonFlow` |
 
 ## Quick links

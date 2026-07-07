@@ -184,4 +184,3 @@ end;
 
 `TJSONNavigator` supports dot-notation and array index notation (`tags[0]`).
 
-See [Performance enhancements](./performance-enhancements) for cache and batch mode wrappers around `TJSONComposer`.

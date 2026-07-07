@@ -35,21 +35,22 @@ All JSON structures are accessed through interfaces (`IJSONElement`, `IJSONObjec
 
 Both serialization (read/write) and schema validation support a middleware pipeline. Implement `IGetValueMiddleware` or `ISetValueMiddleware` to intercept property values during serialization/deserialization (e.g., encrypt a field, reformat a date).
 
-### 5. Performance tiers
+### 5. Audited performance
 
-| Tier | Mechanism | Speedup |
-|---|---|---|
-| Default | `TJSONComposer` | baseline |
-| Navigation cache | `TJSONComposerEnhanced` with `EnableCache` | up to 2.5× |
-| Batch mode | `BeginBatch` / `EndBatch` | up to 3.4× |
-| Object pooling | `TJSONComposerPool` / `TPooledJSONComposer` | up to 3× |
+Every hot path was profiled and optimized in the July 2026 audit, validated with byte-identical output and reproducible console benchmarks:
+
+| Hot path | Result |
+|---|---|
+| Serialization / deserialization | up to 26× faster than native Delphi `TJSON`; up to 15× faster than X-SuperObject |
+| Schema validation | 3.4× faster (identity-based compile caching, precompiled regexes, O(1) error paths) |
+| Path-based editing | up to 33× faster (`IJSONArray.Insert`, reusable navigation) |
 
 ## Compatibility
 
-| Environment | Platform | Draft 7 | Pooling |
+| Environment | Platform | Draft 7 | Custom Middlewares |
 |---|---|:---:|:---:|
 | Delphi XE or later | VCL, FMX, Console (Win/Linux/macOS/iOS/Android) | Yes | Yes |
 
-:::note Linux64 status
-Win32/Win64 is verified in production (2026-06-20). Linux64 consumer apps compile and run. A standalone full-framework Linux build has one tracked follow-up: `IEventMiddleware` is declared in both `JsonFlow.Types` and `JsonFlow.Interfaces` — choosing the canonical declaration resolves the ambiguity (this is not a platform issue).
+:::note Platform status
+Win32/Win64 is verified in production. All installed Delphi compilers build the full framework cleanly (verified 2026-07-07): Win32, Win64, Win64x (ARM64EC), Linux64, macOS Intel/ARM, iOS device/simulator.
 :::

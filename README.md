@@ -29,7 +29,7 @@
 *   **Draft 7 JSON Schema Validation:** Fully validate JSON structures against Draft 7 specifications with detailed local error paths (`Path` and `SchemaPath`).
 *   **Audited, Benchmark-Backed Performance** (July 2026 hot-path audit, reproducible console harnesses):
     *   *Serialization/Deserialization:* up to 15× faster serialization and 7× faster deserialization than X-SuperObject (see charts below).
-    *   *Schema Validation:* 3.1× faster after identity-based compile caching and precompiled regex rules.
+    *   *Schema Validation:* 3.4× faster after identity-based compile caching, precompiled regex rules, and O(1) incremental error paths.
     *   *Path-based Editing:* array inserts and path operations up to 33× faster via `IJSONArray.Insert` and reusable navigation.
 *   **Extensible Middleware System:** Intercept, encrypt, decrypt, or format specific JSON fields (e.g., dates, currency, custom types) on the fly — with a compiler-enforced contract validated at registration.
 

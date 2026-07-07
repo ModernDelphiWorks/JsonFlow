@@ -179,4 +179,3 @@ LValidator.OnLog(
 
 ## Async validation
 
-For validating large batches of documents in parallel, see [Async validation](./async-validation).

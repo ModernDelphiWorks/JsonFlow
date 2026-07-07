@@ -25,7 +25,7 @@
 *   **Validação de JSON Schema Draft 7:** Valide seus dados JSON contra especificações Draft 7 com mapeamento detalhado dos erros (`Path` e `SchemaPath`).
 *   **Performance Auditada e Comprovada por Benchmark** (auditoria de hot paths de jul/2026, harnesses reproduzíveis):
     *   *Serialização/Deserialização:* até 15× mais rápida na serialização e 7× na deserialização que o X-SuperObject (gráficos abaixo).
-    *   *Validação de Schema:* 3,1× mais rápida com cache de compilação por identidade e regexes pré-compiladas.
+    *   *Validação de Schema:* 3,4× mais rápida com cache de compilação por identidade, regexes pré-compiladas e paths de erro incrementais O(1).
     *   *Edição por Path:* inserções em array e operações por caminho até 33× mais rápidas via `IJSONArray.Insert` e navegação reutilizável.
 *   **Middlewares de Processamento:** Criptografe, descriptografe ou formate campos de JSON (como CPFs, CNPJs e datas) dinamicamente no fluxo — com contrato validado no registro.
 

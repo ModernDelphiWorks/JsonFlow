@@ -130,4 +130,3 @@ end;
 - [Serialize objects to JSON](../guides/serialize-object-to-json) — options, attributes, lists.
 - [Fluent writer](../guides/fluent-writer) — build JSON programmatically without strings.
 - [Schema validation](../guides/schema-validation) — full Draft 7 keyword reference.
-- [Performance enhancements](../guides/performance-enhancements) — cache, batch, pooling.

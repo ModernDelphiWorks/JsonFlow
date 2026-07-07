@@ -16,7 +16,7 @@ Welcome to the **JsonFlow** technical documentation portal. Content is derived f
         <h3>JsonFlow</h3>
       </div>
       <div className="card__body">
-        <p>High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi. Provides object↔JSON mapping via RTTI, a fluent composer for in-place editing, and a full Draft 7 validator with detailed error paths. Performance add-ons: navigation cache (2.5×), batch mode (3.4×), and thread-safe object pooling (3×).</p>
+        <p>High-performance JSON serialization, dynamic manipulation, and Draft 7 Schema validation framework for Delphi. Provides object↔JSON mapping via RTTI, a fluent composer for in-place editing, and a full Draft 7 validator with detailed error paths. Audited hot paths (July 2026): up to 26× faster than native Delphi TJSON, 15× faster than X-SuperObject, 3.4× faster schema validation, and 33× faster path-based editing.</p>
       </div>
       <div className="card__footer">
         <a className="button button--primary" href="./jsonflow/">Open documentation →</a>
@@ -27,7 +27,7 @@ Welcome to the **JsonFlow** technical documentation portal. Content is derived f
 
 ## Documented release
 
-This portal matches the published source as of **2026-06-20**.
+This portal matches the published source as of **2026-07-07** (post performance/feature audit, PRs #41–#54).
 
-- Win32/Win64: verified in production.
+- Win32/Win64: verified in production. All Delphi compilers verified (Win32/Win64/Win64x/Linux64/macOS/iOS).
 - Draft 7 JSON Schema validation: full keyword coverage.

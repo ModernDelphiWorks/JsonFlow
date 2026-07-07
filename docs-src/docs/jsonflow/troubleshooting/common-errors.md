@@ -127,43 +127,8 @@ uses
 
 ## Performance issues
 
-### High memory usage with many concurrent requests
+### Path operations or bulk edits seem slow
 
-**Cause:** Each request creates and destroys a `TJSONComposer`, triggering repeated allocation.
+**Cause:** You may be running a JsonFlow version older than the July 2026 performance audit.
 
-**Fix:** Use `TJSONComposerPool`:
-
-```delphi
-LComposer := LPool.BorrowComposer;
-try
-  // use composer
-finally
-  LPool.ReturnComposer(LComposer);
-end;
-```
-
----
-
-### Repeated path lookups are slow
-
-**Cause:** `TJSONComposer` re-walks the element tree for every path-based operation.
-
-**Fix:** Wrap with `TJSONComposerEnhanced` and enable the path cache:
-
-```delphi
-var LCfg := TPerformanceConfig.Default;
-LCfg.Cache.Enabled := True;
-LEnhanced.Configure(LCfg);
-```
-
----
-
-## Linux64 build issues
-
-### Ambiguous `IEventMiddleware` symbol
-
-**Cause:** `IEventMiddleware` is declared in both `JsonFlow.Types` and `JsonFlow.Interfaces`. Including both in the same `uses` clause creates an ambiguity.
-
-**Fix:** Use the canonical declaration from `JsonFlow.Interfaces` only. Remove `JsonFlow.Types` from the `uses` clause where the conflict occurs, or qualify the identifier: `JsonFlow.Interfaces.IEventMiddleware`.
-
-This is a tracked framework issue (not a platform issue) — a future release will remove the duplicate declaration.
+**Fix:** Update to the current version. The audit made parsing up to ~1000× faster on large payloads, path-based editing up to 33× faster (`IJSONArray.Insert`, reusable internal navigation), and schema validation 3.4× faster — with no opt-in wrappers required. The former `TJSONComposerEnhanced`/`TJSONComposerPool` add-ons were removed because the optimized core made them unnecessary.

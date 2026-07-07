@@ -150,43 +150,6 @@ Path syntax: dot-notation (`user.address.city`) and array indices (`items[0].nam
 
 ---
 
-## TJSONComposerEnhanced (unit `JsonFlow.Composer.Enhanced`)
-
-Wraps `IJSONComposer` and adds caching and batching.
-
-| Member | Description |
-|---|---|
-| `Create(AComposer)` | Wrap any `IJSONComposer` |
-| `Configure(AConfig)` | Apply `TPerformanceConfig` |
-| `SetPerformanceMode(AMode)` | Quick preset (Default/HighPerformance/LowMemory/Balanced) |
-| `ClearCache` | Invalidate path cache |
-| `BeginBatch`, `EndBatch`, `ExecuteBatch` | Batch control |
-| `IsBatchMode` | Returns `True` if in batch mode |
-| `SetValue(APath, AValue)` | Cache-aware mutation; returns `Boolean` |
-| `AddToArray(APath, AValue)` | Cache-aware array append; returns `Boolean` |
-| `RemoveKey(APath)` | Cache-aware key removal; returns `Boolean` |
-| `SetMultipleValues(APathValuePairs)` | Bulk key/value update |
-| `AddMultipleToArray(APath, AValues)` | Bulk array append |
-| `GetStats` | Returns `TPerformanceStats` |
-| `GetStatsReport` | Returns stats as formatted string |
-| `ResetStats` | Zero counters |
-
----
-
-## TJSONComposerPool (unit `JsonFlow.Composer.Pool`)
-
-| Member | Description |
-|---|---|
-| `Create(ACreateFunc?)` | Optional custom factory for composers |
-| `BorrowComposer` | Get a composer from the pool (creates if needed) |
-| `ReturnComposer(AComposer)` | Return a composer to the pool |
-| `GetStats` | Returns `TPoolStats` |
-| `GetStatsAsString` | Returns stats as formatted string |
-| `Clear` | Drain pool (frees all pooled composers) |
-| `Configure(AConfig)` | Apply `TPoolConfiguration` |
-
----
-
 ## TSchemaValidator (unit `JsonFlow.SchemaValidator`)
 
 Implements `IJSONSchemaValidator`.
@@ -201,27 +164,3 @@ Implements `IJSONSchemaValidator`.
 | `GetLastError` | Returns last error message as string |
 | `AddLog(AMessage)` | Append to internal log |
 | `OnLog(ALogProc)` | Register log callback |
-
----
-
-## TAsyncValidator (unit `JsonFlow.AsyncValidator`)
-
-See [Async validation](../guides/async-validation) for the full guide.
-
-| Member | Description |
-|---|---|
-| `Create(AConfig)` | Requires explicit `TConfig` record |
-| `Start` / `Stop` / `Pause` / `Resume` | Lifecycle control |
-| `SubmitValidation(AJsonData, ASchema, APriority?, AProgressCallback?, ACompletedCallback?)` | Submit one task; returns `TaskId: string` |
-| `SubmitBatchValidation(AJsonDataList, ASchema, APriority?, ...)` | Submit multiple tasks; returns `TArray<string>` of task IDs |
-| `CancelTask(ATaskId)` | Cancel a queued/running task; returns `Boolean` |
-| `GetTaskStatus(ATaskId)` | Returns `TStatus` |
-| `GetTaskResult(ATaskId)` | Returns `TResult`; raises if not completed |
-| `WaitForTask(ATaskId, ATimeoutMs?)` | Block until task done; returns `Boolean` |
-| `WaitForAllTasks(ATimeoutMs?)` | Block until queue is empty; returns `Boolean` |
-| `GetStats` | Returns `TStats` record |
-| `GetQueueSize` | Returns `Integer` |
-| `GetActiveThreadCount` | Returns `Integer` |
-| `Config` | Read/write `TConfig` property |
-
-Callbacks (`TProgressCallback`, `TCompletedCallback`) are passed per-call to `SubmitValidation`, not stored as properties on the validator instance.

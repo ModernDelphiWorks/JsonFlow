@@ -59,7 +59,7 @@ JsonFlow was also benchmarked against the popular [X-SuperObject](https://github
 
 ### 🐧 Cross-Platform Build — Win32 / Win64 / Linux64
 
-> **Win32 / Win64:** ✅ verified (2026-06-20, real production backend). **Linux64:** the units used by the backend compile and run on Linux. The previously documented `IEventMiddleware` duplicate declaration has been resolved (`JsonFlow.Interfaces` is the canonical unit); a full standalone Linux build re-verification is the remaining follow-up.
+> **Win32 / Win64:** ✅ verified (2026-06-20, real production backend). **Linux64:** ✅ all 79 framework units compile standalone with `dcclinux64` (verified 2026-07-07, RAD Studio 37.0; the Horse middleware integration is out of scope as an external dependency). Linking a final executable still requires a Linux SDK, as described below.
 
 **Building a consumer app for Linux64:** install the Linux 64-bit platform (RAD Studio GetIt / `GetItCmd -if=delphi_linux -ae`), provide a Linux SDK (RAD Studio SDK Manager + PAServer, **or** a sysroot assembled from a WSL/Linux toolchain passed to `dcclinux64` via `--syslibroot` / `--libpath`), then compile with `dcclinux64`.
 

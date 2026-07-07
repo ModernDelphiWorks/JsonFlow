@@ -533,12 +533,19 @@ end;
 procedure TJsonBuilder.AddMiddleware(
   const AEventMiddleware: IEventMiddleware);
 var
+  LRef: IEventMiddleware;
   LGetMw: IGetValueMiddleware;
   LSetMw: ISetValueMiddleware;
   LHasContract: Boolean;
 begin
   if not Assigned(AEventMiddleware) then
     raise EArgumentNilException.Create('Middleware cannot be nil');
+
+  // Segura uma referência antes dos Supports: com const + objeto recém-criado
+  // o refcount chega em 0 — um QueryInterface que falha seguido de raise
+  // vazava o objeto, e a ordem dos Supports ficava sensível a destruição
+  // prematura (mesmo bug corrigido no TJSONSerializer.AddMiddleware).
+  LRef := AEventMiddleware;
 
   // Contrato validado no REGISTRO: implementar só o marcador IEventMiddleware
   // seria silenciosamente inútil — falha aqui, não em runtime silencioso.
@@ -547,12 +554,12 @@ begin
   LHasContract := False;
   TMonitor.Enter(FMiddlwareLock);
   try
-    if Supports(AEventMiddleware, IGetValueMiddleware, LGetMw) then
+    if Supports(LRef, IGetValueMiddleware, LGetMw) then
     begin
       FGetMiddlewares := FGetMiddlewares + [LGetMw];
       LHasContract := True;
     end;
-    if Supports(AEventMiddleware, ISetValueMiddleware, LSetMw) then
+    if Supports(LRef, ISetValueMiddleware, LSetMw) then
     begin
       FSetMiddlewares := FSetMiddlewares + [LSetMw];
       LHasContract := True;

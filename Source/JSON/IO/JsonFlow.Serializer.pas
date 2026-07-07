@@ -34,6 +34,29 @@ uses
 
 type
   /// <summary>
+  /// Classificação de coleções suportadas nativamente pelo serializador.
+  /// Coleções serializam como array JSON — sem isso, TObjectList/TStrings/
+  /// TCollection viravam um "saco de propriedades" ({"Capacity":...,"Count":...}).
+  /// </summary>
+  TSerializerCollectionKind = (sckNone, sckStrings, sckCollection, sckClassicList, sckGenericList);
+
+  /// <summary>
+  /// Entrada do cache de tipo: RTTI + propriedades legíveis + classificação de
+  /// coleção com os métodos resolvidos uma única vez por classe.
+  /// </summary>
+  TSerializerTypeInfo = record
+    RttiType: TRttiType;
+    Props: TList<TRttiProperty>;
+    CollectionKind: TSerializerCollectionKind;
+    // sckGenericList (TList<T>/TObjectList<T>): resolvidos no cache
+    ToArrayMethod: TRttiMethod;   // serialização
+    AddMethod: TRttiMethod;       // deserialização
+    ClearMethod: TRttiMethod;     // deserialização
+    ItemCreate: TRttiMethod;      // construtor do item (apenas itens classe)
+    ItemMetaclass: TClass;
+  end;
+
+  /// <summary>
   /// Opções avançadas de serialização
   /// </summary>
   TJSONSerializerOptions = record
@@ -63,9 +86,17 @@ type
     FAttributeHelper: TJSONAttributeHelper;
   private
     FContext: TRttiContext;
-    FTypeCache: TDictionary<TClass, TPair<TRttiType, TList<TRttiProperty>>>;
+    FTypeCache: TDictionary<TClass, TSerializerTypeInfo>;
     procedure _Log(const AMessage: string);
-    function _GetCachedType(AClass: TClass): TPair<TRttiType, TList<TRttiProperty>>;
+    function _GetCachedType(AClass: TClass): TSerializerTypeInfo;
+    function _ResolveListItemType(const AListType: TRttiType): TRttiType;
+    function _CollectionToElement(AObject: TObject; const AInfo: TSerializerTypeInfo;
+      const AStoreClassName: Boolean): IJSONElement;
+    function _CollectionFromElement(AObject: TObject; const AInfo: TSerializerTypeInfo;
+      const AArray: IJSONArray): Boolean;
+    procedure _WriteCollection(AObject: TObject; const AInfo: TSerializerTypeInfo;
+      ABuilder: TStringBuilder; const AStoreClassName: Boolean);
+    procedure _AppendElement(const AElement: IJSONElement; ABuilder: TStringBuilder);
     procedure _JSONToProperty(const AProperty: TRttiProperty; const AInstance: TObject;
       const AElement: IJSONElement);
     function _JSONFromProperty(const AProperty: TRttiProperty; const AInstance: TObject;
@@ -123,6 +154,9 @@ implementation
 uses
   System.DateUtils;
 
+const
+  C_DEFAULT_FLOAT_FORMAT = '0.##########';
+
 { TJSONSerializerOptions }
 
 class function TJSONSerializerOptions.Default: TJSONSerializerOptions;
@@ -133,7 +167,7 @@ begin
   Result.ProcessAttributes := False;
   Result.IgnoreNullValues := False;
   Result.DateTimeFormat := 'yyyy-mm-dd"T"hh:nn:ss.zzz"Z"';
-  Result.FloatFormat := '0.##########';
+  Result.FloatFormat := C_DEFAULT_FLOAT_FORMAT;
   Result.MaxDepth := 100;
 end;
 
@@ -144,7 +178,7 @@ begin
   inherited Create;
   FLogProc := nil;
   FContext := TRttiContext.Create;
-  FTypeCache := TDictionary<TClass, TPair<TRttiType, TList<TRttiProperty>>>.Create;
+  FTypeCache := TDictionary<TClass, TSerializerTypeInfo>.Create;
   FMiddlewares := TList<IEventMiddleware>.Create;
   FFormatSettings := TFormatSettings.Create('en-US');
   FFormatSettings.ShortDateFormat := 'yyyy-mm-dd';
@@ -167,7 +201,7 @@ begin
   inherited Create;
   FLogProc := nil;
   FContext := TRttiContext.Create;
-  FTypeCache := TDictionary<TClass, TPair<TRttiType, TList<TRttiProperty>>>.Create;
+  FTypeCache := TDictionary<TClass, TSerializerTypeInfo>.Create;
   FMiddlewares := TList<IEventMiddleware>.Create;
   FFormatSettings := TFormatSettings.Create('en-US');
   FFormatSettings.ShortDateFormat := 'yyyy-mm-dd';
@@ -185,10 +219,10 @@ end;
 
 destructor TJSONSerializer.Destroy;
 var
-  LPair: TPair<TClass, TPair<TRttiType, TList<TRttiProperty>>>;
+  LPair: TPair<TClass, TSerializerTypeInfo>;
 begin
   for LPair in FTypeCache do
-    LPair.Value.Value.Free;
+    LPair.Value.Props.Free;
   FAttributeHelper.Free;
   FCircularRefManager.Free;
   FMiddlewares.Free;
@@ -203,11 +237,12 @@ begin
     FLogProc(AMessage);
 end;
 
-function TJSONSerializer._GetCachedType(AClass: TClass): TPair<TRttiType, TList<TRttiProperty>>;
+function TJSONSerializer._GetCachedType(AClass: TClass): TSerializerTypeInfo;
 var
   LRttiType: TRttiType;
   LProperties: TList<TRttiProperty>;
   LProp: TRttiProperty;
+  LItemType: TRttiType;
 begin
   // TryGetValue único no hit — antes eram 2-3 buscas no dicionário por objeto
   // (ContainsKey no _CacheType + FTypeCache[LClass] no chamador).
@@ -217,21 +252,246 @@ begin
   LRttiType := FContext.GetType(AClass);
   if not Assigned(LRttiType) then
     raise EInvalidOperation.Create('RTTI not available for class ' + AClass.ClassName);
+
+  Result := Default(TSerializerTypeInfo);
+  Result.RttiType := LRttiType;
+
+  // Classificação de coleção — uma vez por classe; os hot paths só comparam
+  // o enum. TStack/TQueue/TDictionary ficam de fora (sem semântica de array
+  // ordenado estável).
+  if AClass.InheritsFrom(TStrings) then
+    Result.CollectionKind := sckStrings
+  else if AClass.InheritsFrom(TCollection) then
+    Result.CollectionKind := sckCollection
+  else if AClass.InheritsFrom(TList) then
+    Result.CollectionKind := sckClassicList
+  else if Pos('List<', AClass.ClassName) > 0 then
+  begin
+    Result.ToArrayMethod := LRttiType.GetMethod('ToArray');
+    if Assigned(Result.ToArrayMethod) then
+    begin
+      Result.CollectionKind := sckGenericList;
+      Result.AddMethod := LRttiType.GetMethod('Add');
+      Result.ClearMethod := LRttiType.GetMethod('Clear');
+      LItemType := _ResolveListItemType(LRttiType);
+      if Assigned(LItemType) and LItemType.IsInstance then
+      begin
+        Result.ItemMetaclass := LItemType.AsInstance.MetaclassType;
+        Result.ItemCreate := LItemType.GetMethod('Create');
+      end;
+    end;
+  end;
+
   LProperties := TList<TRttiProperty>.Create;
   try
     for LProp in LRttiType.GetProperties do
     begin
       if LProp.IsReadable then
       begin
+        // Plumbing do TCollectionItem (Collection/ID/Index/DisplayName) fica
+        // de fora: 'Collection' é back-reference para a coleção dona —
+        // serializá-la recursava infinitamente (item → coleção → item...).
+        if AClass.InheritsFrom(TCollectionItem) and
+           (LProp.Parent.Handle = TypeInfo(TCollectionItem)) then
+          Continue;
         LProperties.Add(LProp);
       end;
     end;
-    Result := TPair<TRttiType, TList<TRttiProperty>>.Create(LRttiType, LProperties);
+    Result.Props := LProperties;
     FTypeCache.Add(AClass, Result);
   except
     LProperties.Free;
     raise;
   end;
+end;
+
+function TJSONSerializer._ResolveListItemType(const AListType: TRttiType): TRttiType;
+var
+  LName: string;
+  LPosI, LPosF: Integer;
+begin
+  // 'TObjectList<Unit.TItem>' → FindType('Unit.TItem') — o argumento genérico
+  // já vem qualificado no nome do tipo.
+  Result := nil;
+  LName := AListType.ToString;
+  LPosI := Pos('<', LName);
+  if LPosI <= 0 then
+    Exit;
+  LPosF := LastDelimiter('>', LName);
+  if LPosF <= LPosI then
+    Exit;
+  Result := FContext.FindType(Copy(LName, LPosI + 1, LPosF - LPosI - 1));
+end;
+
+function TJSONSerializer._CollectionToElement(AObject: TObject; const AInfo: TSerializerTypeInfo;
+  const AStoreClassName: Boolean): IJSONElement;
+var
+  LArray: IJSONArray;
+  LFor: Integer;
+  LItem: TObject;
+begin
+  case AInfo.CollectionKind of
+    sckStrings:
+      begin
+        LArray := TJSONArray.Create;
+        for LFor := 0 to TStrings(AObject).Count - 1 do
+          LArray.Add(TJSONValueString.Create(TStrings(AObject).Strings[LFor]));
+        Result := LArray;
+      end;
+    sckCollection:
+      begin
+        LArray := TJSONArray.Create;
+        for LFor := 0 to TCollection(AObject).Count - 1 do
+          LArray.Add(FromObject(TCollection(AObject).Items[LFor], AStoreClassName));
+        Result := LArray;
+      end;
+    sckClassicList:
+      begin
+        LArray := TJSONArray.Create;
+        for LFor := 0 to TList(AObject).Count - 1 do
+        begin
+          LItem := TObject(TList(AObject).List[LFor]);
+          if Assigned(LItem) then
+            LArray.Add(FromObject(LItem, AStoreClassName))
+          else
+            LArray.Add(TJSONValueNull.Create);
+        end;
+        Result := LArray;
+      end;
+    sckGenericList:
+      // ToArray → TValue (tkDynArray) reaproveita a serialização de arrays,
+      // cobrindo listas de qualquer elemento (classe, número, string...).
+      Result := _SerializeTValue(AInfo.ToArrayMethod.Invoke(AObject, []), AStoreClassName);
+  else
+    Result := TJSONValueNull.Create;
+  end;
+end;
+
+function TJSONSerializer._CollectionFromElement(AObject: TObject; const AInfo: TSerializerTypeInfo;
+  const AArray: IJSONArray): Boolean;
+var
+  LFor: Integer;
+  LItem: TObject;
+  LValueIntf: IJSONValue;
+begin
+  Result := False;
+  case AInfo.CollectionKind of
+    sckStrings:
+      begin
+        TStrings(AObject).BeginUpdate;
+        try
+          TStrings(AObject).Clear;
+          for LFor := 0 to AArray.Count - 1 do
+            if Supports(AArray.GetItem(LFor), IJSONValue, LValueIntf) then
+              TStrings(AObject).Add(LValueIntf.AsString);
+        finally
+          TStrings(AObject).EndUpdate;
+        end;
+        Result := True;
+      end;
+    sckCollection:
+      begin
+        TCollection(AObject).Clear;
+        for LFor := 0 to AArray.Count - 1 do
+        begin
+          LItem := TCollection(AObject).Add;
+          if not ToObject(AArray.GetItem(LFor), LItem) then
+            Exit;
+        end;
+        Result := True;
+      end;
+    sckGenericList:
+      begin
+        if not Assigned(AInfo.ItemMetaclass) or not Assigned(AInfo.AddMethod) or
+           not Assigned(AInfo.ItemCreate) then
+          raise EArgumentException.Create(
+            'Cannot deserialize into ' + AObject.ClassName +
+            ' (only lists of classes are supported)');
+        if Assigned(AInfo.ClearMethod) then
+          AInfo.ClearMethod.Invoke(AObject, []);
+        for LFor := 0 to AArray.Count - 1 do
+        begin
+          // Invoke do construtor na CLASSE: aloca e roda o construtor real
+          // numa única chamada (mesmo padrão do JsonToObjectList do builder).
+          LItem := AInfo.ItemCreate.Invoke(AInfo.ItemMetaclass, []).AsObject;
+          try
+            if not ToObject(AArray.GetItem(LFor), LItem) then
+            begin
+              LItem.Free;
+              Exit;
+            end;
+          except
+            LItem.Free;
+            raise;
+          end;
+          AInfo.AddMethod.Invoke(AObject, [LItem]);
+        end;
+        Result := True;
+      end;
+    sckClassicList:
+      raise EArgumentException.Create(
+        'Cannot deserialize into classic TList (element type unknown); use TObjectList<T>');
+  end;
+end;
+
+procedure TJSONSerializer._WriteCollection(AObject: TObject; const AInfo: TSerializerTypeInfo;
+  ABuilder: TStringBuilder; const AStoreClassName: Boolean);
+var
+  LFor: Integer;
+  LItem: TObject;
+begin
+  case AInfo.CollectionKind of
+    sckStrings:
+      begin
+        ABuilder.Append('[');
+        for LFor := 0 to TStrings(AObject).Count - 1 do
+        begin
+          if LFor > 0 then
+            ABuilder.Append(',');
+          ABuilder.Append('"');
+          _AppendEscapedString(TStrings(AObject).Strings[LFor], ABuilder);
+          ABuilder.Append('"');
+        end;
+        ABuilder.Append(']');
+      end;
+    sckCollection:
+      begin
+        ABuilder.Append('[');
+        for LFor := 0 to TCollection(AObject).Count - 1 do
+        begin
+          if LFor > 0 then
+            ABuilder.Append(',');
+          _WriteObject(TCollection(AObject).Items[LFor], ABuilder, AStoreClassName);
+        end;
+        ABuilder.Append(']');
+      end;
+    sckClassicList:
+      begin
+        ABuilder.Append('[');
+        for LFor := 0 to TList(AObject).Count - 1 do
+        begin
+          if LFor > 0 then
+            ABuilder.Append(',');
+          LItem := TObject(TList(AObject).List[LFor]);
+          _WriteObject(LItem, ABuilder, AStoreClassName); // nil → 'null'
+        end;
+        ABuilder.Append(']');
+      end;
+    sckGenericList:
+      _WriteTValue(AInfo.ToArrayMethod.Invoke(AObject, []), ABuilder, AStoreClassName);
+  end;
+end;
+
+procedure TJSONSerializer._AppendElement(const AElement: IJSONElement; ABuilder: TStringBuilder);
+var
+  LCompact: IJSONCompactWriter;
+begin
+  if not Assigned(AElement) then
+    ABuilder.Append('null')
+  else if Supports(AElement, IJSONCompactWriter, LCompact) then
+    LCompact.AppendCompactJSON(ABuilder)
+  else
+    ABuilder.Append(AElement.AsJSON(False));
 end;
 
 function TJSONSerializer._JSONFromProperty(const AProperty: TRttiProperty; const AInstance: TObject;
@@ -557,7 +817,10 @@ begin
     tkClass:
       begin
         LObject := AProperty.GetValue(AInstance).AsObject;
-        if Assigned(LObject) and Supports(AElement, IJSONObject) then
+        // IJSONArray também: propriedades de coleção (TObjectList/TStrings/
+        // TCollection) chegam como array JSON e o ToObject as despacha.
+        if Assigned(LObject) and
+           (Supports(AElement, IJSONObject) or Supports(AElement, IJSONArray)) then
           ToObject(AElement, LObject);
       end;
     tkDynArray:
@@ -617,7 +880,7 @@ end;
 function TJSONSerializer.FromObject(AObject: TObject; AStoreClassName: Boolean): IJSONElement;
 var
   LClass: TClass;
-  LTypeInfo: TPair<TRttiType, TList<TRttiProperty>>;
+  LTypeInfo: TSerializerTypeInfo;
   LProp: TRttiProperty;
   LJsonObj: IJSONObject;
   LElement: IJSONElement;
@@ -629,12 +892,15 @@ begin
   LClass := AObject.ClassType;
   LTypeInfo := _GetCachedType(LClass);
 
+  if LTypeInfo.CollectionKind <> sckNone then
+    Exit(_CollectionToElement(AObject, LTypeInfo, AStoreClassName));
+
   LJsonObj := TJSONObject.Create;
   try
     if AStoreClassName then
       LJsonObj.Add('$class', TJSONValueString.Create(LClass.ClassName));
 
-    for LProp in LTypeInfo.Value do
+    for LProp in LTypeInfo.Props do
     begin
       if FOptions.ProcessAttributes then
       begin
@@ -673,22 +939,30 @@ begin
 end;
 
 procedure TJSONSerializer.AddMiddleware(const AMiddleware: IEventMiddleware);
+var
+  LRef: IEventMiddleware;
 begin
   if not Assigned(AMiddleware) then
     raise EArgumentNilException.Create('Middleware cannot be nil');
-  if not (Supports(AMiddleware, IGetValueMiddleware) or
-          Supports(AMiddleware, ISetValueMiddleware)) then
+  // Segura uma referência ANTES de validar: com parâmetro const + objeto
+  // recém-criado (AddMiddleware(TMyMw.Create)) o refcount chega em 0 e o
+  // Supports de validação (QueryInterface + release do temporário) destruía
+  // o middleware — o Add então guardava um ponteiro dangling.
+  LRef := AMiddleware;
+  if not (Supports(LRef, IGetValueMiddleware) or
+          Supports(LRef, ISetValueMiddleware)) then
     raise EArgumentException.Create(
       'Middleware must implement IGetValueMiddleware and/or ISetValueMiddleware ' +
       '(implementing only the IEventMiddleware marker has no effect)');
-  FMiddlewares.Add(AMiddleware);
+  FMiddlewares.Add(LRef);
 end;
 
 function TJSONSerializer.ToObject(const AElement: IJSONElement; AObject: TObject): Boolean;
 var
   LClass: TClass;
-  LTypeInfo: TPair<TRttiType, TList<TRttiProperty>>;
+  LTypeInfo: TSerializerTypeInfo;
   LJsonObj: IJSONObject;
+  LJsonArr: IJSONArray;
   LProp: TRttiProperty;
   LKey: String;
   LElement: IJSONElement;
@@ -699,13 +973,20 @@ begin
   if not Assigned(AElement) then
     raise EArgumentNilException.Create('Element cannot be nil');
 
-  if not Supports(AElement, IJSONObject, LJsonObj) then
-    raise EArgumentException.Create('Element must be a JSON object');
-
   LClass := AObject.ClassType;
   LTypeInfo := _GetCachedType(LClass);
 
-  for LProp in LTypeInfo.Value do
+  if LTypeInfo.CollectionKind <> sckNone then
+  begin
+    if not Supports(AElement, IJSONArray, LJsonArr) then
+      raise EArgumentException.Create('Element must be a JSON array for collection ' + LClass.ClassName);
+    Exit(_CollectionFromElement(AObject, LTypeInfo, LJsonArr));
+  end;
+
+  if not Supports(AElement, IJSONObject, LJsonObj) then
+    raise EArgumentException.Create('Element must be a JSON object');
+
+  for LProp in LTypeInfo.Props do
   begin
     if FOptions.ProcessAttributes then
     begin
@@ -805,7 +1086,14 @@ begin
         else
         begin
           LDouble := AValue.AsExtended;
-          ABuilder.Append(FormatFloat(FOptions.FloatFormat, LDouble, FFormatSettings));
+          // Double integral com a máscara padrão produz os mesmos dígitos que
+          // Int64: emite direto sem reparsear a máscara (~8× mais rápido).
+          // Acima de 1E15 a máscara pode arredondar diferente do Int64 exato.
+          if (Frac(LDouble) = 0) and (System.Abs(LDouble) < 1E15) and
+             (FOptions.FloatFormat = C_DEFAULT_FLOAT_FORMAT) then
+            ABuilder.Append(Trunc(LDouble))
+          else
+            ABuilder.Append(FormatFloat(FOptions.FloatFormat, LDouble, FFormatSettings));
         end;
       end;
     tkChar, tkWChar, tkLString, tkWString, tkUString:
@@ -858,11 +1146,17 @@ end;
 procedure TJSONSerializer._WriteObject(AObject: TObject; ABuilder: TStringBuilder; const AStoreClassName: Boolean);
 var
   LClass: TClass;
-  LTypeInfo: TPair<TRttiType, TList<TRttiProperty>>;
+  LTypeInfo: TSerializerTypeInfo;
   LProp: TRttiProperty;
   LPropName: string;
   LValue: TValue;
   LFirst: Boolean;
+  LFor: Integer;
+  LHandled: Boolean;
+  LBreak: Boolean;
+  LResult: Variant;
+  LGetMiddle: IGetValueMiddleware;
+  LConverter: IJSONPropertyConverter;
 begin
   if not Assigned(AObject) then
   begin
@@ -872,6 +1166,12 @@ begin
 
   LClass := AObject.ClassType;
   LTypeInfo := _GetCachedType(LClass);
+
+  if LTypeInfo.CollectionKind <> sckNone then
+  begin
+    _WriteCollection(AObject, LTypeInfo, ABuilder, AStoreClassName);
+    Exit;
+  end;
 
   ABuilder.Append('{');
   LFirst := True;
@@ -884,7 +1184,7 @@ begin
     LFirst := False;
   end;
 
-  for LProp in LTypeInfo.Value do
+  for LProp in LTypeInfo.Props do
   begin
     LValue := LProp.GetValue(AObject);
 
@@ -910,7 +1210,39 @@ begin
     ABuilder.Append(LPropName);
     ABuilder.Append('":');
 
-    _WriteTValue(LValue, ABuilder, AStoreClassName);
+    // Converters e middlewares honrados também no caminho stream — antes o
+    // SerializeToString os ignorava silenciosamente (só o FromObject/DOM
+    // interceptava). Mesma ordem do _JSONFromProperty: converter → middleware
+    // → valor. Guardas mantêm custo zero sem attributes/middlewares.
+    LHandled := False;
+    if FOptions.ProcessAttributes then
+    begin
+      LConverter := TJSONAttributeHelper.GetCustomConverter(LProp);
+      if Assigned(LConverter) then
+      begin
+        _AppendElement(LConverter.ToJSON(LValue, LProp), ABuilder);
+        LHandled := True;
+      end;
+    end;
+    if not LHandled and (FMiddlewares.Count > 0) then
+    begin
+      for LFor := 0 to FMiddlewares.Count - 1 do
+      begin
+        if Supports(FMiddlewares[LFor], IGetValueMiddleware, LGetMiddle) then
+        begin
+          LBreak := False;
+          LGetMiddle.GetValue(AObject, LProp, LResult, LBreak);
+          if LBreak then
+          begin
+            _AppendElement(_JSONToElement(LResult), ABuilder);
+            LHandled := True;
+            Break;
+          end;
+        end;
+      end;
+    end;
+    if not LHandled then
+      _WriteTValue(LValue, ABuilder, AStoreClassName);
   end;
   ABuilder.Append('}');
 end;

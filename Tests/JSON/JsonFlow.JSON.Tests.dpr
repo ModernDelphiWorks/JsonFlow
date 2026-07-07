@@ -21,7 +21,8 @@ uses
   JsonFlow.TestsValue in 'Core\JsonFlow.TestsValue.pas',
   JsonFlow.TestsNavigator in 'IO\JsonFlow.TestsNavigator.pas',
   JsonFlow.TestsReader in 'IO\JsonFlow.TestsReader.pas',
-  JsonFlow.TestsSerializer in 'IO\JsonFlow.TestsSerializer.pas';
+  JsonFlow.TestsSerializer in 'IO\JsonFlow.TestsSerializer.pas',
+  JsonFlow.TestsSerializerCollections in 'IO\JsonFlow.TestsSerializerCollections.pas';
 
 var
   LRunner: ITestRunner;

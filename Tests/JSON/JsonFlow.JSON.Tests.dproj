@@ -99,6 +99,7 @@
         <DCCReference Include="IO\JsonFlow.TestsNavigator.pas"/>
         <DCCReference Include="IO\JsonFlow.TestsReader.pas"/>
         <DCCReference Include="IO\JsonFlow.TestsSerializer.pas"/>
+        <DCCReference Include="IO\JsonFlow.TestsSerializerCollections.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -29,7 +29,7 @@
 *   **In-Place Dynamic Composer:** Load and modify complex JSON structures in-place. Traverse nested elements fluidly using path strings (e.g., `user.address[0].zip`).
 *   **Draft 7 JSON Schema Validation:** Fully validate JSON structures against Draft 7 specifications with detailed local error paths (`Path` and `SchemaPath`).
 *   **Audited, Benchmark-Backed Performance** (July 2026 hot-path audit, reproducible console harnesses):
-    *   *Serialization/Deserialization:* up to 15× faster serialization and 6× faster deserialization than X-SuperObject (see charts below).
+    *   *Serialization/Deserialization:* up to 15× faster serialization and 7× faster deserialization than X-SuperObject (see charts below).
     *   *Schema Validation:* 3.1× faster after identity-based compile caching and precompiled regex rules.
     *   *Path-based Editing:* array inserts and path operations up to 33× faster via `IJSONArray.Insert` and reusable navigation.
 *   **Extensible Middleware System:** Intercept, encrypt, decrypt, or format specific JSON fields (e.g., dates, currency, custom types) on the fly — with a compiler-enforced contract validated at registration.
@@ -49,7 +49,7 @@ Below is a comparison demonstrating JsonFlow's performance superiority against s
   <img src="assets/benchmarks.png" alt="JsonFlow Performance Comparison Chart" width="800"/>
 </p>
 
-JsonFlow was also benchmarked against the popular [X-SuperObject](https://github.com/onryldz/x-superobject) library — Complex Class scenario (1K to 5K `TCustomer` objects with nested `Address` and `Contacts`). At the 5K scale (Release, Win32): **~6× faster deserialization** (50ms vs 316ms) and **~15× faster serialization** (19ms vs 282ms):
+JsonFlow was also benchmarked against the popular [X-SuperObject](https://github.com/onryldz/x-superobject) library — Complex Class scenario (1K to 5K `TCustomer` objects with nested `Address` and `Contacts`). At the 5K scale (Release, Win32): **~7× faster deserialization** (47ms vs 319ms) and **~15× faster serialization** (19ms vs 298ms):
 
 <p align="center">
   <img src="assets/benchmarks-xsuperobject.png" alt="JsonFlow vs X-SuperObject Performance Comparison Chart" width="800"/>
